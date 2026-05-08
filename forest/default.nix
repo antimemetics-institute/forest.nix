@@ -5,6 +5,7 @@ with lib;
 
 let
   cfg = config.forest;
+  forestUtils = import ./utils { inherit lib; };
 
   userSubmodule = { ... }: {
     options = {
@@ -25,7 +26,7 @@ let
     };
   };
 
-  vmSubmodule = { name, config, ... }: {
+  vmSubmodule = { name, config, allResolvedIndices, ... }: {
     options = {
       enable = mkOption {
         type = types.bool;
@@ -34,12 +35,28 @@ let
       };
 
       index = mkOption {
-        type = types.int;
+        type = types.nullOr types.int;
+        default = null;
         description = ''
-          Stable index for this VM, used to derive its IPv4, IPv6, MAC address, and vsock CID.
-          Must be unique across all VMs. The resulting IPv4 will be 192.168.69.(10 + index).
-          Once assigned, never change it — just give new VMs the next unused number.
+          Optional explicit index for this VM. If null (default), an index is
+          auto-assigned: VMs are walked in name order and given the lowest free
+          slot, skipping any indices pinned by other VMs.
+
+          Set this to pin a VM to a specific slot (e.g. to keep its IPv4 stable
+          even if VMs sorting before it are added or removed). Once a VM is
+          deployed, don't change its index — the resulting IPv4 is part of its
+          identity.
+
+          The resolved index drives IPv4 (192.168.69.[10+index]), IPv6, MAC,
+          and vsock CID. Range: 0–244.
         '';
+      };
+
+      _index = mkOption {
+        type = types.int;
+        readOnly = true;
+        internal = true;
+        description = "Resolved index (explicit if set, else auto-assigned).";
       };
 
       hypervisor = mkOption {
@@ -224,10 +241,11 @@ let
     };
     config =
       let
-        idx = config.index;
+        idx = allResolvedIndices.${name};
         macHex = lib.strings.toLower (lib.toHexString (1 + idx));
         macPadded = if builtins.stringLength macHex == 1 then "0${macHex}" else macHex;
       in {
+        _index = idx;
         tapInterface = "vm-${name}";
         ipv4 = "192.168.69.${toString (10 + idx)}";
         ipv6 = "fd69::${toString (10 + idx)}";
@@ -250,7 +268,20 @@ in
     };
 
     vms = mkOption {
-      type = types.attrsOf (types.submodule vmSubmodule);
+      type = types.attrsOf (types.submoduleWith {
+        modules = [ vmSubmodule ];
+        # Match what `types.submodule vm` does. Without this, the option named
+        # `config` collides with the module-system reserved key and users
+        # can't have both `config = {...}` and `index = N` on the same VM.
+        shorthandOnlyDefinesConfig = true;
+        # Resolve indices once at the type level and pass the result through
+        # specialArgs. Reading `config.forest.vms` here is structurally OK:
+        # `resolveIndices` only inspects each VM's user-set `index` (default
+        # null), which doesn't depend on specialArgs, so there's no cycle.
+        specialArgs = {
+          allResolvedIndices = forestUtils.resolveIndices config.forest.vms;
+        };
+      });
       default = {};
       description = "VMs to create with microvm.";
     };
@@ -485,7 +516,9 @@ in
           '';
         }
       ] ++ (let
-        indexPairs = lib.mapAttrsToList (name: vm: { inherit name; idx = vm.index; }) enabledVms;
+        # Only explicit indices can collide — auto-assignment can't produce duplicates.
+        explicitVms = lib.filterAttrs (_: vm: vm.index != null) enabledVms;
+        indexPairs = lib.mapAttrsToList (name: vm: { inherit name; idx = vm.index; }) explicitVms;
         findDuplicates = pairs:
           lib.filter (a:
             lib.any (b: a.name != b.name && a.idx == b.idx) pairs
@@ -496,9 +529,9 @@ in
         assertion = duplicates == [];
         message = "Duplicate forest VM indices detected: ${duplicateMsg}. Each VM must have a unique index.";
       }])
-      ++ (lib.mapAttrsToList (_: vm: {
-        assertion = vm.index >= 0 && vm.index <= 244;
-        message = "VM index ${toString vm.index} out of range. Must be 0-244 (maps to .10-.254).";
+      ++ (lib.mapAttrsToList (name: vm: {
+        assertion = vm._index >= 0 && vm._index <= 244;
+        message = "VM '${name}' resolved to index ${toString vm._index}, out of range. Must be 0-244 (maps to .10-.254).";
       }) enabledVms)
       ++ (lib.flatten (lib.mapAttrsToList (vmName: vm:
         lib.map (dep: {

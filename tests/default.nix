@@ -1,17 +1,21 @@
 # Forest tests entry point.
 #
-# Eval-time unit tests for forest/utils.nix:
+# Eval-time unit tests for forest/utils:
 #   nix-instantiate --eval ./tests -A summary
 #   nix-instantiate --eval ./tests -A allPassed
 #
 # Build-time checks (consumed by flake.nix):
 #   .checks.utils  — derivation that fails iff any unit test fails
 #   .checks.cli    — derivation that exercises forest/cli/forest.sh against stubs
+#
+# Adding a new test section: drop a directory of .nix files next to this one.
+# Each .nix file receives `{ lib, utils, runners }` and returns an attrset of
+# named test results. Sections are auto-discovered.
 { pkgs ? import <nixpkgs> {} }:
 
 let
   lib = pkgs.lib;
-  utils = import ../forest/utils.nix { inherit lib; };
+  utils = import ../forest/utils { inherit lib; };
 
   normalize = s:
     lib.concatStringsSep "\n"
@@ -40,7 +44,16 @@ let
     in
       lib.foldl' (acc: name: acc // (import (dir + "/${name}") args)) {} nixFiles;
 
-  sections = importTestsFrom ./nftables-generation;
+  # Auto-discover test directories next to this file. Subdirectories are
+  # purely organizational — each .nix file inside returns `{ section = tests; }`
+  # and those are flattened into one map of section -> tests.
+  sectionDirs =
+    let entries = builtins.readDir ./.;
+    in lib.filter (name: entries.${name} == "directory") (lib.attrNames entries);
+
+  sections = lib.foldl' (acc: dir:
+    acc // (importTestsFrom (./. + "/${dir}"))
+  ) {} sectionDirs;
 
   allResults = lib.foldl' (acc: s: acc // s) {} (builtins.attrValues sections);
 

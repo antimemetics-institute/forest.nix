@@ -3,11 +3,8 @@
 Easy declarative microvm-backed virtual machines for NixOS. A thin opinionated layer over [microvm.nix](https://github.com/microvm-nix/microvm.nix) that wires up networking, NAT, per-VM firewalling, persistent state, SSH host keys, and a small CLI — so a VM definition fits in a handful of lines.
 
 ```nix
-forest.vms.web = {
-  index = 0;
-  config = {
-    services.nginx.enable = true;
-  };
+forest.vms.web.config = {
+  services.nginx.enable = true;
 };
 ```
 
@@ -80,12 +77,9 @@ Then in `host.nix`:
   forest = {
     externalInterface = "enp5s0";  # your physical/wifi interface
 
-    vms.web = {
-      index = 0;
-      config = {
-        services.nginx.enable = true;
-        networking.firewall.allowedTCPPorts = [ 80 ];
-      };
+    vms.web.config = {
+      services.nginx.enable = true;
+      networking.firewall.allowedTCPPorts = [ 80 ];
     };
   };
 }
@@ -109,7 +103,8 @@ Tab-completion is installed for bash.
 
 ## Networking
 
-- Every VM gets a stable IPv4 (`192.168.69.{10+index}`), IPv6 (`fd69::{10+index}`), MAC, and vsock CID derived from its `index`. Indices must be unique. Range: 0–244. Refer to the VM's generated IP by `forest.vms.{name}.ipv4` or `forest.vms.{name}.ipv6`.
+- Every VM gets an IPv4 (`192.168.69.{10+index}`), IPv6 (`fd69::{10+index}`), MAC, and vsock CID derived from its `index`. Refer to a VM's IP via `forest.vms.{name}.ipv4` / `.ipv6` instead of hard-coding it.
+- `index` is auto-assigned by default — VMs are walked in name order and each gets the lowest free slot. **Once a VM holds persistent state (a database, an issued cert, a deployed service), pin its index explicitly** so its IP doesn't shift when you add or rename other VMs. Set `forest.vms.<name>.index = N` (range 0–244) to pin; auto-assignment skips pinned slots, so pins and unset values mix freely. Pins must be unique.
 - VMs sit on a bridge (`forest` by default). The host is the gateway at `192.168.69.1` / `fd69::1`.
 - The host's nftables policy is **default-deny for inter-VM traffic**: a VM cannot reach another VM unless it declares a `dependsOn` entry. Internet access is gated per-VM by `internetAccess` (default `true`).
 
@@ -117,7 +112,6 @@ Tab-completion is installed for bash.
 
 ```nix
 forest.vms.web = {
-  index = 0;
   dependsOn = [
     { target = "db";    port = 5432; protocol = "tcp"; ipVersion = "both"; }
     { target = "cache"; port = 6379; protocol = "tcp"; }
@@ -147,7 +141,6 @@ Global defaults live under `forest.dns.{servers,constrain}` and are inherited by
 
 ```nix
 forest.vms.foo = {
-  index = 1;
   sops = {
     enable = true;
     defaultSopsFile = ./secrets/foo.yaml;
@@ -176,7 +169,7 @@ By default, the VMs use cppnix specific experimental feature to enable a writabl
 | option            | type         | default                         | description                                       |
 |-------------------|--------------|---------------------------------|---------------------------------------------------|
 | `enable`          | bool         | `true`                          | Whether this VM is part of the forest.            |
-| `index`           | int          | _required_                      | Unique stable index (0–244).                      |
+| `index`           | int or null  | `null` (auto-assigned)          | Pin to a stable slot (0–244). See [Networking](#networking). |
 | `hypervisor`      | str          | `"cloud-hypervisor"`            | Any microvm-supported hypervisor.                 |
 | `memory`          | int (MB)     | `2048`                          | Memory allocation.                                |
 | `vcpu`            | int          | `4`                             | Number of vCPUs.                                  |
@@ -192,7 +185,7 @@ By default, the VMs use cppnix specific experimental feature to enable a writabl
 | `ssh.users`       | list         | `[]`                            | Create users with SSH access (opens sshd).        |
 | `sops`            | submodule    | disabled                        | Per-VM sops-nix integration.                      |
 
-The readonly fields `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` are derived from `index`.
+The readonly fields `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` are derived from the VM's resolved index (explicit if set, otherwise auto-assigned).
 
 ## Top-level options
 
@@ -241,7 +234,6 @@ To enable graphical output on a VM:
 
 ```nix
 forest.vms.desktop = {
-  index = 3;
   graphics.enable = true;
   config = { /* ... */ };
 };
@@ -280,7 +272,6 @@ Cloud-hypervisor's PCI passthrough is fragile, so this requires `hypervisor = "q
 
 ```nix
 forest.vms.workstation = {
-  index = 2;
   hypervisor = "qemu";
   pciPassthrough = [
     "0000:06:00.0"   # GPU
@@ -344,7 +335,7 @@ nix-instantiate --eval ./tests -A summary
 
 ## Architecture notes
 
-- One nftables `inet` table (`forest_filter`) holds the input + forward chains. Two NAT tables (`forest_nat`, `forest_nat6`) handle masquerade. Rules are generated per-VM from `forest/utils.nix`.
+- One nftables `inet` table (`forest_filter`) holds the input + forward chains. Two NAT tables (`forest_nat`, `forest_nat6`) handle masquerade. Rules are generated per-VM from `forest/utils/nftables.nix`.
 - `forest.commonConfig` is implemented as a `deferredModule` and prepended to each VM's `imports` list, before the user's `vm.config`.
 - The CLI lives in `forest/cli.nix` + `forest/forest.sh` + `forest/completion.bash`. The script is shellcheck-clean (enforced by `pkgs.writeShellApplication`).
 

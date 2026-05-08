@@ -6,7 +6,7 @@ with lib;
 
 let
   cfg = config.forest;
-  forestUtils = import ../utils.nix { inherit lib; };
+  forestUtils = import ../utils { inherit lib; };
   enabledVms = lib.filterAttrs (_: vm: vm.enable) cfg.vms;
   internetVms = lib.filterAttrs (_: vm: vm.internetAccess) enabledVms;
   constrainedVms = lib.filterAttrs (_: vm: vm.dns.constrain) enabledVms;
