@@ -124,6 +124,7 @@ Global defaults live under `forest.dns.{servers,constrain}` and are inherited by
 | `memory`          | int (MB)     | `2048`                          | Memory allocation.                                |
 | `vcpu`            | int          | `4`                             | Number of vCPUs.                                  |
 | `stateVersion`    | str          | `"25.11"`                       | `system.stateVersion` for the VM.                 |
+| `writableStore`   | bool         | `true`                          | Writable nix store overlay (wiped on each start). |
 | `config`          | module       | _required_                      | NixOS module for the VM.                          |
 | `internetAccess`  | bool         | `true`                          | Allow public internet via host NAT.               |
 | `dns.servers`     | list of str  | `forest.dns.servers`            | DNS servers configured in the VM.                 |
@@ -187,7 +188,9 @@ Each VM has three persistent virtiofs shares:
 | `/var/log`           | `/var/lib/microvms/<vm>/logs`          | journals + logs                         |
 | `/var/lib/host-keys` | `/var/lib/microvms/<vm>/host-keys`     | SSH host keys (stable VM identity)      |
 
-The host's `/nix/store` is shared read-only. `system.stateVersion` is pinned per VM via `stateVersion`.
+The host's `/nix/store` is shared read-only. By default each VM also gets a writable overlay on top of it (`writableStore = true`) so `nix-shell`, `nix build`, etc. work inside the guest — implemented as nix's `local-overlay-store` backend with the upper layer kept in `/var/lib/microvms/<vm>/nix-store-overlay.img`. The overlay image is wiped on every VM start so boots stay clean. Set `writableStore = false` to skip the overlay (read-only host store only).
+
+`system.stateVersion` is pinned per VM via `stateVersion`.
 
 ## Secrets (sops-nix)
 

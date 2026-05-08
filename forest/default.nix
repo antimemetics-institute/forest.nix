@@ -100,6 +100,16 @@ let
         '';
       };
 
+      writableStore = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Whether the VM gets a writable nix store overlay on top of the host's
+          read-only store. Lets nix-shell / nix build / etc. work inside the VM.
+          The overlay image is wiped on each VM start (boots stay fast and clean).
+        '';
+      };
+
       config = mkOption {
         type = types.deferredModule;
         description = "A NixOS configuration module for the VM.";
@@ -412,7 +422,8 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
               microvm.nixosModules.microvm
               cfg.commonConfig
               vm.config
-            ] ++ lib.optional vm.sops.enable (import ./secrets.nix {
+            ] ++ lib.optional vm.writableStore ./store-overlay/vm.nix
+            ++ lib.optional vm.sops.enable (import ./secrets.nix {
               inherit sops-nix;
               defaultSopsFile = vm.sops.defaultSopsFile;
             })
@@ -536,6 +547,15 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
             "sys-subsystem-net-devices-${cfg.bridgeInterface}.device"
           ];
         };
+      } // lib.optionalAttrs vm.writableStore {
+        # Wipe the nix-store overlay before each VM start so it boots clean.
+        "microvm@${name}".preStart = lib.mkBefore ''
+          OVERLAY_IMG="/var/lib/microvms/${name}/nix-store-overlay.img"
+          if [ -f "$OVERLAY_IMG" ]; then
+            echo "Wiping stale nix store overlay..."
+            rm -f "$OVERLAY_IMG"
+          fi
+        '';
       }) enabledVms;
 
       assertions = [
