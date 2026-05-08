@@ -183,6 +183,7 @@ By default, the VMs use cppnix specific experimental feature to enable a writabl
 | `stateVersion`    | str          | `"25.11"`                       | `system.stateVersion` for the VM.                 |
 | `writableStore`   | bool         | `true`                          | Writable nix store overlay (wiped on each start). |
 | `pciPassthrough`  | list of str  | `[]`                            | PCI device addresses to pass through (qemu only). |
+| `graphics.enable` | bool         | `false`                         | Use spectrum-patched cloud-hypervisor for graphics. |
 | `config`          | module       | _required_                      | NixOS module for the VM.                          |
 | `internetAccess`  | bool         | `true`                          | Allow public internet via host NAT.               |
 | `dns.servers`     | list of str  | `forest.dns.servers`            | DNS servers configured in the VM.                 |
@@ -233,6 +234,29 @@ forest.vms.web.ssh.users = [{
 ```
 
 This creates the user, opens sshd to the bridge, and disables password auth. From the host you can reach the VM at `web.forest.local` (entries are added to `/etc/hosts` for both host and guests).
+
+## Graphics (cloud-hypervisor)
+
+To enable graphical output on a VM:
+
+```nix
+forest.vms.desktop = {
+  index = 3;
+  graphics.enable = true;
+  config = { /* ... */ };
+};
+```
+
+Forest swaps the VM's cloud-hypervisor binary for the [spectrum-patched](https://spectrum-os.org) graphics build (`pkgs.cloud-hypervisor-graphics`) and sets `microvm.graphics.enable = true` inside the VM. Lazy: when no VM has `graphics.enable = true`, the patched build is never realized — zero closure cost.
+
+The patched cloud-hypervisor is **not** in microvm's binary cache, so first build is from-source (10–30 min). Adding microvm's cachix is still recommended for the regular cloud-hypervisor / qemu / virtiofsd builds:
+
+```nix
+nix.settings = {
+  substituters = [ "https://microvm.cachix.org" ];
+  trusted-public-keys = [ "microvm.cachix.org-1:oXnBc6hRE3eX5rSYdRyMYXnfzcCxC7yKPTbZXALsqys=" ];
+};
+```
 
 ## Persistent state
 
