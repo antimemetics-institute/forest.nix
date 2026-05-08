@@ -5,7 +5,7 @@ Easy declarative microvm-backed virtual machines for NixOS. A thin opinionated l
 ```nix
 forest.vms.web = {
   index = 0;
-  config = { ... }: {
+  config = {
     services.nginx.enable = true;
   };
 };
@@ -13,7 +13,7 @@ forest.vms.web = {
 
 ## Status
 
-Pre-1.0. APIs may shift. Please open issues with feedback.
+We early, APIs may shift.
 
 ## Quick start
 
@@ -23,7 +23,10 @@ Add forest as a flake input:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    forest.url = "github:raphaelfrancis/forest.nix";
+    forest = {
+      url = "github:antimemetics-institute/forest.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = { self, nixpkgs, forest, ... }: {
@@ -42,18 +45,12 @@ Then in `host.nix`:
 
 ```nix
 { ... }: {
-  # IP forwarding is required for VMs to reach the internet via NAT.
-  boot.kernel.sysctl = {
-    "net.ipv4.ip_forward" = 1;
-    "net.ipv6.conf.all.forwarding" = 1;
-  };
-
   forest = {
     externalInterface = "enp5s0";  # your physical/wifi interface
 
     vms.web = {
       index = 0;
-      config = { ... }: {
+      config = {
         services.nginx.enable = true;
         networking.firewall.allowedTCPPorts = [ 80 ];
       };
@@ -78,9 +75,9 @@ forest journal  <vm>         # the VM's own journal
 
 Tab-completion is installed for bash.
 
-## Networking model
+## Networking
 
-- Every VM gets a stable IPv4 (`192.168.69.{10+index}`), IPv6 (`fd69::{10+index}`), MAC, and vsock CID derived from its `index`. Indices must be unique. Range: 0–244.
+- Every VM gets a stable IPv4 (`192.168.69.{10+index}`), IPv6 (`fd69::{10+index}`), MAC, and vsock CID derived from its `index`. Indices must be unique. Range: 0–244. Refer to the VM's generated IP by `forest.vms.{name}.ipv4` or `forest.vms.{name}.ipv6`.
 - VMs sit on a bridge (`forest` by default). The host is the gateway at `192.168.69.1` / `fd69::1`.
 - The host's nftables policy is **default-deny for inter-VM traffic**: a VM cannot reach another VM unless it declares a `dependsOn` entry. Internet access is gated per-VM by `internetAccess` (default `true`).
 
@@ -97,7 +94,7 @@ forest.vms.web = {
 };
 ```
 
-This generates the matching firewall accept rules. Connection tracking handles return traffic.
+This generates the matching firewall accept rules. Connection tracking handles return traffic. Refer to the other VMs by their name in the `.forest.local` domain, e.g., `db.forest.local` or `cache.forest.local`.
 
 ### DNS
 
@@ -113,6 +110,34 @@ forest.vms.foo.dns = {
 ```
 
 Global defaults live under `forest.dns.{servers,constrain}` and are inherited by every VM unless overridden.
+
+## Secrets (sops-nix)
+
+```nix
+forest.vms.foo = {
+  index = 1;
+  sops = {
+    enable = true;
+    defaultSopsFile = ./secrets/foo.yaml;
+  };
+  config = {
+    sops.secrets.api_token = {};
+    # ...
+  };
+};
+```
+
+The VM's persistent SSH host key is used as the age identity for sops. To enroll a freshly-created VM:
+
+```sh
+ssh-keyscan <vm-ip> | ssh-to-age   # add this age public key to .sops.yaml
+```
+
+Find the key in `/var/lib/microvms/{vm_name}/host_keys/SOMETHINGSOMETHING` TODO check what it is here
+
+## Store overlay
+
+By default, the VMs use cppnix specific experimental feature to enable a writable store overlay, allowing you to run commands like `nix-shell` inside the VM.
 
 ## Per-VM options
 
@@ -177,8 +202,6 @@ forest.vms.web.ssh.users = [{
 
 This creates the user, opens sshd to the bridge, and disables password auth. From the host you can reach the VM at `web.forest.local` (entries are added to `/etc/hosts` for both host and guests).
 
-The microvm runner also supports vsock SSH (`microvm -s <name>`) which works without networking.
-
 ## Persistent state
 
 Each VM has three persistent virtiofs shares:
@@ -197,45 +220,61 @@ The host's `/nix/store` is shared read-only. By default each VM also gets a writ
 
 ## GPU / PCI passthrough
 
+Cloud-hypervisor's PCI passthrough is fragile, so this requires `hypervisor = "qemu"`.
+
 ```nix
 forest.vms.workstation = {
   index = 2;
-  hypervisor = "qemu";          # required for PCI passthrough
-  memory    = 24576;
-  vcpu      = 16;
+  hypervisor = "qemu";
   pciPassthrough = [
-    "0000:06:00.0"               # GPU
-    "0000:06:00.1"               # HDMI audio
+    "0000:06:00.0"   # GPU
+    "0000:06:00.1"   # HDMI audio function on the same card
   ];
-  config = { ... }: { /* ... */ };
+  config = { /* ... */ };
 };
 ```
 
-Forest already sets the host kernel params (`intel_iommu=on`, `iommu=pt`) and the `kvm-intel` module. For AMD systems you'll want to override `boot.kernelParams` to use `amd_iommu=on` and load `kvm-amd`.
+When at least one VM has `pciPassthrough != []`, forest adds `intel_iommu=on amd_iommu=on iommu=pt` to `boot.kernelParams`. The kernel ignores the irrelevant vendor's flag, so this works on Intel and AMD without any CPU-vendor option. The host's `microvm-pci-devices@<vm>` service is also given retry-on-failure config, since PCI unbinding occasionally flakes the first time. An assertion enforces `hypervisor = "qemu"` whenever `pciPassthrough` is non-empty.
 
-The host's `microvm-pci-devices@<vm>` service is configured with retry-on-failure (PCI unbinding can flake transiently). An assertion enforces `hypervisor = "qemu"` whenever `pciPassthrough` is non-empty.
+### Finding PCI addresses
 
-## Secrets (sops-nix)
+The address forest wants is BDF format — `domain:bus:device.function`, e.g. `0000:06:00.0`. List every device with vendor:device IDs:
 
-```nix
-forest.vms.foo = {
-  index = 1;
-  sops = {
-    enable = true;
-    defaultSopsFile = ./secrets/foo.yaml;
-  };
-  config = { ... }: {
-    sops.secrets.api_token = {};
-    # ...
-  };
-};
+```console
+$ lspci -nn
+00:00.0 Host bridge [0600]: Intel Corporation ... [8086:1234]
+06:00.0 VGA compatible controller [0300]: NVIDIA Corporation ... [10de:2204]
+06:00.1 Audio device [0403]: NVIDIA Corporation ... [10de:1aef]
 ```
 
-The VM's persistent SSH host key is used as the age identity for sops. To enroll a freshly-created VM:
+Filter to GPUs, or inspect a single device's current driver binding:
 
-```sh
-ssh-keyscan <vm-ip> | ssh-to-age   # add this age public key to .sops.yaml
+```bash
+lspci -nn | grep -iE 'vga|3d|display'
+lspci -nnk -s 06:00.0
 ```
+
+If a domain prefix is missing (`06:00.0` vs `0000:06:00.0`), prepend `0000:` — that's the default PCI domain on most systems.
+
+### IOMMU groups: the whole group goes through
+
+VFIO passes through an entire IOMMU group, not a single function. Before adding a device to `pciPassthrough`, list its group and check what else is in it:
+
+```bash
+for g in /sys/kernel/iommu_groups/*; do
+  group=$(basename "$g")
+  for d in "$g"/devices/*; do
+    printf '%-3s  ' "$group"
+    lspci -nns "$(basename "$d")"
+  done
+done | sort -V -k1
+```
+
+If the GPU shares a group with something you need on the host, the options are: a different physical slot, the kernel's ACS override patch, or moving the entire group to the VM. GPUs almost always come paired with an HDMI/DisplayPort audio function (typically `.1`) — pass both or audio inside the VM won't work.
+
+### Driver binding
+
+You don't need to bind devices to `vfio-pci` manually — `microvm-pci-devices@<vm>` unbinds the current driver and rebinds to vfio-pci before the VM starts, then reverses on shutdown. If a device is held by a driver that won't let go (e.g. an active display managed by `nvidia-drm`), the unbind fails; the retry config helps but the cleanest fix is making sure the host doesn't actively use the device.
 
 ## Tests
 

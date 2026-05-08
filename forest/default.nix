@@ -314,6 +314,7 @@ in
       vmNames = lib.attrNames enabledVms;
       internetVms = lib.filterAttrs (_: vm: vm.internetAccess) enabledVms;
       constrainedVms = lib.filterAttrs (_: vm: vm.dns.constrain) enabledVms;
+      anyPciPassthrough = lib.any (vm: vm.pciPassthrough != []) (lib.attrValues enabledVms);
       forestCli = import ./cli { inherit lib pkgs vmNames; };
     in {
       networking.hosts = mkMerge (lib.mapAttrsToList (name: vm: {
@@ -321,11 +322,24 @@ in
         "${vm.ipv6}" = [ "${name}.forest.local" ];
       }) enabledVms);
 
-      boot.kernelModules = [ "kvm-intel" ];
-      boot.kernelParams = [
+      # Load both KVM modules; the one whose hardware isn't present silently
+      # no-ops (logged in dmesg, not fatal). Avoids forcing a CPU-vendor option.
+      boot.kernelModules = [ "kvm-intel" "kvm-amd" ];
+
+      # IOMMU is only needed for VFIO PCI passthrough. Set both vendors' params
+      # when any VM declares pciPassthrough — the kernel ignores the irrelevant one.
+      boot.kernelParams = lib.optionals anyPciPassthrough [
         "intel_iommu=on"
+        "amd_iommu=on"
         "iommu=pt"
       ];
+
+      # Forest needs IP forwarding for NAT and inter-bridge routing. mkDefault
+      # so a user with a specific reason to disable it can still override.
+      boot.kernel.sysctl = {
+        "net.ipv4.ip_forward" = lib.mkDefault 1;
+        "net.ipv6.conf.all.forwarding" = lib.mkDefault 1;
+      };
 
       environment.systemPackages = (with pkgs; [
         curl
@@ -585,7 +599,9 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
                        config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == "1");
           message = ''
             The forest module requires IP forwarding to be enabled for NAT to work.
-            Please add the following to your configuration:
+            Forest sets these via lib.mkDefault, so something in your config has
+            overridden them back to off. Either drop that override or accept that
+            forest VMs won't reach the network:
 
             boot.kernel.sysctl = {
               "net.ipv4.ip_forward" = 1;
