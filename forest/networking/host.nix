@@ -111,12 +111,10 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
     systemd.services = lib.mapAttrs' (name: _vm:
       lib.nameValuePair "microvm-tap-interfaces@${name}" {
         after = [
-          "microvm-netdev.service"
           "sys-subsystem-net-devices-${cfg.bridgeInterface}.device"
           "network-addresses-${cfg.bridgeInterface}.service"
         ];
         requires = [
-          "microvm-netdev.service"
           "sys-subsystem-net-devices-${cfg.bridgeInterface}.device"
         ];
       }
