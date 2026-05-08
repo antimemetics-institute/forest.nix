@@ -125,6 +125,7 @@ Global defaults live under `forest.dns.{servers,constrain}` and are inherited by
 | `vcpu`            | int          | `4`                             | Number of vCPUs.                                  |
 | `stateVersion`    | str          | `"25.11"`                       | `system.stateVersion` for the VM.                 |
 | `writableStore`   | bool         | `true`                          | Writable nix store overlay (wiped on each start). |
+| `pciPassthrough`  | list of str  | `[]`                            | PCI device addresses to pass through (qemu only). |
 | `config`          | module       | _required_                      | NixOS module for the VM.                          |
 | `internetAccess`  | bool         | `true`                          | Allow public internet via host NAT.               |
 | `dns.servers`     | list of str  | `forest.dns.servers`            | DNS servers configured in the VM.                 |
@@ -190,7 +191,29 @@ Each VM has three persistent virtiofs shares:
 
 The host's `/nix/store` is shared read-only. By default each VM also gets a writable overlay on top of it (`writableStore = true`) so `nix-shell`, `nix build`, etc. work inside the guest — implemented as nix's `local-overlay-store` backend with the upper layer kept in `/var/lib/microvms/<vm>/nix-store-overlay.img`. The overlay image is wiped on every VM start so boots stay clean. Set `writableStore = false` to skip the overlay (read-only host store only).
 
+> **Note on Lix.** The writable overlay needs the `local-overlay-store` experimental feature, which CppNix and Determinate Nix ship but Lix does not. If a VM sets `nix.package = pkgs.lix` and leaves `writableStore = true`, an assertion fails at eval time with instructions to either flip `writableStore = false` or pin a CppNix variant.
+
 `system.stateVersion` is pinned per VM via `stateVersion`.
+
+## GPU / PCI passthrough
+
+```nix
+forest.vms.workstation = {
+  index = 2;
+  hypervisor = "qemu";          # required for PCI passthrough
+  memory    = 24576;
+  vcpu      = 16;
+  pciPassthrough = [
+    "0000:06:00.0"               # GPU
+    "0000:06:00.1"               # HDMI audio
+  ];
+  config = { ... }: { /* ... */ };
+};
+```
+
+Forest already sets the host kernel params (`intel_iommu=on`, `iommu=pt`) and the `kvm-intel` module. For AMD systems you'll want to override `boot.kernelParams` to use `amd_iommu=on` and load `kvm-amd`.
+
+The host's `microvm-pci-devices@<vm>` service is configured with retry-on-failure (PCI unbinding can flake transiently). An assertion enforces `hypervisor = "qemu"` whenever `pciPassthrough` is non-empty.
 
 ## Secrets (sops-nix)
 

@@ -16,7 +16,12 @@
 #   - nix-shell, nix shell, etc. all work correctly
 #
 # The overlay volume is wiped on each VM start (see host.nix).
-{ pkgs, ... }:
+#
+# Requires a nix implementation that ships the `local-overlay-store` experimental
+# feature. CppNix and Determinate Nix have it; Lix does not (the daemon would
+# refuse to open `local-overlay://...`). The assertion below denies known-bad
+# implementations by pname; expand the deny list if other forks turn up.
+{ pkgs, lib, config, ... }:
 let
   # Path where microvm mounts the host nix store (set by forest module)
   roStore = "/nix/.ro-store";
@@ -38,6 +43,24 @@ let
   lowerStoreUri = "local%3A//%3Freal%3D${roStore}%26state%3D${roVar}/nix%26read-only%3Dtrue";
 in
 {
+  assertions = [
+    {
+      assertion = (config.nix.package.pname or "nix") != "lix";
+      message = ''
+        forest's writable store overlay requires the `local-overlay-store`
+        experimental feature, which Lix does not implement. The nix daemon
+        will refuse to open `local-overlay://...` and fail to start.
+        For clarity, the host can still run Lix, just the VM needs to 
+        support the `local-overlay-store` experimental feature.
+
+        Either:
+          - set forest.vms.<this VM>.writableStore = false, or
+          - use a nix implementation that supports the feature (default
+            pkgs.nix, any pkgs.nixVersions.*, or Determinate Nix).
+      '';
+    }
+  ];
+
   microvm.writableStoreOverlay = rwStore;
 
   microvm.volumes = [{

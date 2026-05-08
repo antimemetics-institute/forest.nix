@@ -110,6 +110,19 @@ let
         '';
       };
 
+      pciPassthrough = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        example = [ "0000:06:00.0" "0000:06:00.1" ];
+        description = ''
+          PCI device addresses to pass through to the VM via VFIO. The host
+          unbinds each device from its current driver and rebinds to vfio-pci
+          before the VM starts. Cloud-hypervisor's PCI passthrough is fragile,
+          so this requires hypervisor = "qemu". The host-level IOMMU kernel
+          params (intel_iommu=on, iommu=pt) are already set by forest.
+        '';
+      };
+
       config = mkOption {
         type = types.deferredModule;
         description = "A NixOS configuration module for the VM.";
@@ -301,7 +314,7 @@ in
       vmNames = lib.attrNames enabledVms;
       internetVms = lib.filterAttrs (_: vm: vm.internetAccess) enabledVms;
       constrainedVms = lib.filterAttrs (_: vm: vm.dns.constrain) enabledVms;
-      forestCli = import ./cli.nix { inherit lib pkgs vmNames; };
+      forestCli = import ./cli { inherit lib pkgs vmNames; };
     in {
       networking.hosts = mkMerge (lib.mapAttrsToList (name: vm: {
         "${vm.ipv4}" = [ "${name}.forest.local" ];
@@ -438,6 +451,7 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
               mem = vm.memory;
               vcpu = vm.vcpu;
               vsock.cid = vm.vsockCid;
+              devices = lib.map (path: { bus = "pci"; inherit path; }) vm.pciPassthrough;
 
               interfaces = [{
                 type = "tap";
@@ -547,15 +561,20 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
             "sys-subsystem-net-devices-${cfg.bridgeInterface}.device"
           ];
         };
-      } // lib.optionalAttrs vm.writableStore {
-        # Wipe the nix-store overlay before each VM start so it boots clean.
-        "microvm@${name}".preStart = lib.mkBefore ''
-          OVERLAY_IMG="/var/lib/microvms/${name}/nix-store-overlay.img"
-          if [ -f "$OVERLAY_IMG" ]; then
-            echo "Wiping stale nix store overlay..."
-            rm -f "$OVERLAY_IMG"
-          fi
-        '';
+      } // lib.optionalAttrs vm.writableStore (
+        import ./store-overlay/host.nix { inherit name lib; }
+      ) // lib.optionalAttrs (vm.pciPassthrough != []) {
+        # PCI unbinding can flake on first attempt; retry with backoff so the
+        # VM doesn't fail-to-start on a transient driver-busy.
+        "microvm-pci-devices@${name}" = {
+          serviceConfig = {
+            RestartMode = "direct";
+            Restart = "on-failure";
+            RestartSec = "5s";
+            StartLimitBurst = 3;
+            StartLimitIntervalSec = 30;
+          };
+        };
       }) enabledVms;
 
       assertions = [
@@ -606,7 +625,14 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
             Available VMs: ${lib.concatStringsSep ", " vmNames}
           '';
         }) vm.dependsOn
-      ) enabledVms));
+      ) enabledVms))
+      ++ (lib.mapAttrsToList (vmName: vm: {
+        assertion = vm.pciPassthrough == [] || vm.hypervisor == "qemu";
+        message = ''
+          VM '${vmName}' has pciPassthrough set but hypervisor = "${vm.hypervisor}".
+          PCI passthrough only works reliably under QEMU; set hypervisor = "qemu".
+        '';
+      }) enabledVms);
     }
   );
 }
