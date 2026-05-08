@@ -15,7 +15,6 @@ let
       (import ../../forest {
         microvmSrc = sources."microvm.nix";
         sopsNixSrc = sources."sops-nix";
-        spectrumOverlay = final: super: {};
       })
       ({ ... }: {
         _module.check = false;

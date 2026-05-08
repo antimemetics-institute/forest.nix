@@ -1,4 +1,4 @@
-{ microvmSrc, sopsNixSrc, spectrumOverlay }:
+{ microvmSrc, sopsNixSrc }:
 { config, pkgs, lib, ... }:
 
 with lib;
@@ -137,21 +137,6 @@ let
           before the VM starts. Cloud-hypervisor's PCI passthrough is fragile,
           so this requires hypervisor = "qemu". The host-level IOMMU kernel
           params (intel_iommu=on, iommu=pt) are already set by forest.
-        '';
-      };
-
-      graphics.enable = mkOption {
-        type = types.bool;
-        default = false;
-        description = ''
-          Enable graphics output for this VM. Switches its cloud-hypervisor
-          binary to the spectrum-patched graphics build (pkgs.cloud-hypervisor-graphics)
-          and sets microvm.graphics.enable = true inside the VM. Requires
-          hypervisor = "cloud-hypervisor".
-
-          The patched cloud-hypervisor is built from source from the spectrum
-          repo and is not in microvm's binary cache, so first build takes a
-          while. Lazy: zero cost when this is false.
         '';
       };
 
@@ -415,14 +400,11 @@ in
 
             system.stateVersion = lib.mkDefault vm.stateVersion;
 
-            nixpkgs.overlays = lib.optional vm.graphics.enable spectrumOverlay;
-
             microvm = {
               hypervisor = vm.hypervisor;
               mem = vm.memory;
               vcpu = vm.vcpu;
               vsock.cid = vm.vsockCid;
-              graphics.enable = vm.graphics.enable;
               devices = lib.map (path: { bus = "pci"; inherit path; }) vm.pciPassthrough;
 
               interfaces = [{
