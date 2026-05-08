@@ -11,6 +11,13 @@ forest.vms.web = {
 };
 ```
 
+## What you get
+
+- **Containers-like interface on top of microvm-nix.** Declare a VM the way you'd declare a NixOS container — one attrset of options, one config module — but with hardware isolation and a hypervisor instead of a shared kernel.
+- **Networking generated from your declarations.** Bridge, NAT, IPv4/IPv6, default-deny inter-VM firewalling, DNS — all derived from `forest.vms.*`. Open specific ports between VMs with `dependsOn`, cut a VM off from the public internet with `internetAccess = false`, force DNS through a single resolver with `dns.constrain = true`. All configurable, sane defaults.
+- **Lightweight sops-nix integration.** Each VM gets a stable SSH host key that doubles as its age identity automatically — no manual `neededForBoot`, `sshKeyPaths`, or per-VM key plumbing for you to debug.
+- **Writable nix store inside the VM, without the 20-minute rebuild tax.** Forest wires up cppnix's `local-overlay-store` experimental feature so `/nix/store` is shared read-only from the host and only the VM's deltas live in its own image. Confuses gc (it can't see the lower layer's references) but doesn't break it. Toggle with `writableStore`.
+
 ## Status
 
 We early, APIs may shift.
