@@ -108,7 +108,12 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
     };
 
     # Ensure TAP interfaces wait for the bridge — fixes a race at boot.
-    systemd.services = lib.mapAttrs' (name: _vm:
+    systemd.services = {
+      # Bring the addresses unit up alongside the bridge after a rebuild restart;
+      # WantedBy=network.target only fires at boot, so it would otherwise stay dead.
+      "${cfg.bridgeInterface}-netdev".wants =
+        [ "network-addresses-${cfg.bridgeInterface}.service" ];
+    } // lib.mapAttrs' (name: _vm:
       lib.nameValuePair "microvm-tap-interfaces@${name}" {
         after = [
           "sys-subsystem-net-devices-${cfg.bridgeInterface}.device"
