@@ -1,6 +1,12 @@
-# Unit tests for forest/utils.nix
-# Run: nix-instantiate --eval ./tests -A summary
-#      nix-instantiate --eval ./tests -A allPassed
+# Forest tests entry point.
+#
+# Eval-time unit tests for forest/utils.nix:
+#   nix-instantiate --eval ./tests -A summary
+#   nix-instantiate --eval ./tests -A allPassed
+#
+# Build-time checks (consumed by flake.nix):
+#   .checks.utils  — derivation that fails iff any unit test fails
+#   .checks.cli    — derivation that exercises forest/cli/forest.sh against stubs
 { pkgs ? import <nixpkgs> {} }:
 
 let
@@ -70,4 +76,16 @@ in rec {
   '';
 
   inherit allResults;
+
+  checks = {
+    utils =
+      if allPassed
+      then pkgs.runCommand "forest-utils-tests" {} "echo all tests passed; touch $out"
+      else pkgs.runCommand "forest-utils-tests-failed" { failure = summary; } ''
+        printf '%s\n' "$failure"
+        exit 1
+      '';
+
+    cli = import ./cli.nix { inherit pkgs; };
+  };
 }

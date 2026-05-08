@@ -1,10 +1,10 @@
-{ config, pkgs, lib, microvm, sops-nix, ... }:
+{ microvmSrc, sopsNixSrc }:
+{ config, pkgs, lib, ... }:
 
 with lib;
 
 let
   cfg = config.forest;
-  forestUtils = import ./utils.nix { inherit lib; };
 
   userSubmodule = { ... }: {
     options = {
@@ -222,6 +222,11 @@ let
   };
 in
 {
+  imports = [
+    ./networking/host.nix
+    "${microvmSrc}/nixos-modules/host"
+  ];
+
   options.forest = {
     enable = mkOption {
       type = types.bool;
@@ -312,16 +317,9 @@ in
     let
       enabledVms = lib.filterAttrs (_: vm: vm.enable) cfg.vms;
       vmNames = lib.attrNames enabledVms;
-      internetVms = lib.filterAttrs (_: vm: vm.internetAccess) enabledVms;
-      constrainedVms = lib.filterAttrs (_: vm: vm.dns.constrain) enabledVms;
       anyPciPassthrough = lib.any (vm: vm.pciPassthrough != []) (lib.attrValues enabledVms);
       forestCli = import ./cli { inherit lib pkgs vmNames; };
     in {
-      networking.hosts = mkMerge (lib.mapAttrsToList (name: vm: {
-        "${vm.ipv4}" = [ "${name}.forest.local" ];
-        "${vm.ipv6}" = [ "${name}.forest.local" ];
-      }) enabledVms);
-
       # Load both KVM modules; the one whose hardware isn't present silently
       # no-ops (logged in dmesg, not fatal). Avoids forcing a CPU-vendor option.
       boot.kernelModules = [ "kvm-intel" "kvm-amd" ];
@@ -333,13 +331,6 @@ in
         "amd_iommu=on"
         "iommu=pt"
       ];
-
-      # Forest needs IP forwarding for NAT and inter-bridge routing. mkDefault
-      # so a user with a specific reason to disable it can still override.
-      boot.kernel.sysctl = {
-        "net.ipv4.ip_forward" = lib.mkDefault 1;
-        "net.ipv6.conf.all.forwarding" = lib.mkDefault 1;
-      };
 
       environment.systemPackages = (with pkgs; [
         curl
@@ -357,101 +348,19 @@ in
         options = [ "bind" "nosuid" "nodev" "noexec" ];
       };
 
-      networking.networkmanager.unmanaged =
-        [ "interface-name:${cfg.bridgeInterface}" ]
-        ++ lib.mapAttrsToList (_: vm: "interface-name:${vm.tapInterface}") enabledVms;
-
-      networking.bridges.${cfg.bridgeInterface} = {
-        interfaces = [ ];
-      };
-
-      networking.interfaces.${cfg.bridgeInterface} = {
-        ipv4.addresses = [{
-          address = cfg.vmGateway;
-          prefixLength = 24;
-        }];
-        ipv6.addresses = [{
-          address = cfg.vmGateway6;
-          prefixLength = 64;
-        }];
-      };
-
-      networking.firewall = {
-        trustedInterfaces = [ cfg.bridgeInterface ];
-      };
-
-      networking.nftables.tables = {
-        "forest_filter" = {
-          family = "inet";
-          content = ''
-            chain input {
-              type filter hook input priority -100; policy accept;
-
-              # Allow established/related connections (handles return traffic from host-initiated connections)
-              ct state { established, related } accept comment "Allow return traffic"
-
-              # Per-VM DNS access to configured servers
-              ${forestUtils.generateDnsInputRules enabledVms}
-
-              # Allow essential ICMPv6 for IPv6 to work (neighbor discovery, etc)
-              ip6 saddr ${cfg.vmSubnet6} icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert, echo-request, echo-reply } accept comment "Essential ICMPv6"
-
-              # Block VM subnet from accessing other VMs or host services
-              ip saddr ${cfg.vmSubnet} drop comment "Block VMs from other host services IPv4"
-              ip6 saddr ${cfg.vmSubnet6} drop comment "Block VMs from other host services IPv6"
-            }
-
-            chain forward {
-              type filter hook forward priority 0; policy accept;
-
-              # Allow established/related connections (handles return traffic)
-              ct state { established, related } accept comment "Allow established connections"
-
-              # Per-VM DNS constrain rules (allow configured servers, drop the rest)
-              ${forestUtils.generateDnsConstrainRules constrainedVms}
-
-              # VM-specific dependency rules
-              ${forestUtils.generateAllVmConnectionRules enabledVms}
-
-              # Per-VM internet access (only VMs with internetAccess)
-              ${forestUtils.generateInternetForwardRules internetVms}
-            }
-          '';
-        };
-
-        "forest_nat" = {
-          family = "ip";
-          content = ''
-            chain postrouting {
-              type nat hook postrouting priority srcnat; policy accept;
-${forestUtils.generateNat4Rules cfg.externalInterface internetVms}
-            }
-          '';
-        };
-
-        "forest_nat6" = {
-          family = "ip6";
-          content = ''
-            chain postrouting {
-              type nat hook postrouting priority 100; policy accept;
-${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
-            }
-          '';
-        };
-      };
-
       microvm = {
         autostart = lib.attrNames enabledVms;
 
         vms = lib.mapAttrs (name: vm: {
           config = {
             imports = [
-              microvm.nixosModules.microvm
+              "${microvmSrc}/nixos-modules/microvm"
               cfg.commonConfig
               vm.config
+              (import ./networking/vm.nix { inherit name vm cfg lib enabledVms; })
             ] ++ lib.optional vm.writableStore ./store-overlay/vm.nix
             ++ lib.optional vm.sops.enable (import ./secrets.nix {
-              inherit sops-nix;
+              inherit sopsNixSrc;
               defaultSopsFile = vm.sops.defaultSopsFile;
             })
             ++ lib.optional (vm.ssh.users != []) (import ./users.nix {
@@ -516,38 +425,6 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
                 path = "/var/lib/host-keys/ssh_host_ed25519_key";
               }];
             };
-
-            networking.hostName = lib.mkForce name;
-            networking.domain = lib.mkForce "forest.local";
-            networking.useDHCP = lib.mkForce false;
-            networking.useNetworkd = lib.mkForce true;
-
-            networking.hosts = lib.mkMerge (
-              lib.map (dep: {
-                "${enabledVms.${dep.target}.ipv4}" = [ "${dep.target}.forest.local" ];
-                "${enabledVms.${dep.target}.ipv6}" = [ "${dep.target}.forest.local" ];
-              }) vm.dependsOn
-            );
-
-            systemd.network = {
-              enable = true;
-              networks."20-microvm" = {
-                # Match only physical VM interfaces, not veth/podman interfaces
-                matchConfig.Name = "enp* ens* eth*";
-                networkConfig = {
-                  DHCP = "no";
-                  Address = ["${vm.ipv4}/24" "${vm.ipv6}/64"];
-                  Gateway = [cfg.vmGateway cfg.vmGateway6];
-                  DNS = vm.dns.servers;
-                  IPv6AcceptRA = false;
-                };
-              };
-            };
-
-            services.resolved = {
-              enable = true;
-              fallbackDns = [];
-            };
           };
         }) enabledVms;
       };
@@ -562,53 +439,25 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
           "d /var/lib/microvms/${name}/host-keys 0700 microvm microvm -"
         ]) enabledVms);
 
-      systemd.services = lib.concatMapAttrs (name: vm: {
-        # Ensure TAP interfaces wait for the bridge — fixes a race at boot.
-        "microvm-tap-interfaces@${name}" = {
-          after = [
-            "microvm-netdev.service"
-            "sys-subsystem-net-devices-${cfg.bridgeInterface}.device"
-            "network-addresses-${cfg.bridgeInterface}.service"
-          ];
-          requires = [
-            "microvm-netdev.service"
-            "sys-subsystem-net-devices-${cfg.bridgeInterface}.device"
-          ];
-        };
-      } // lib.optionalAttrs vm.writableStore (
-        import ./store-overlay/host.nix { inherit name lib; }
-      ) // lib.optionalAttrs (vm.pciPassthrough != []) {
-        # PCI unbinding can flake on first attempt; retry with backoff so the
-        # VM doesn't fail-to-start on a transient driver-busy.
-        "microvm-pci-devices@${name}" = {
-          serviceConfig = {
-            RestartMode = "direct";
-            Restart = "on-failure";
-            RestartSec = "5s";
-            StartLimitBurst = 3;
-            StartLimitIntervalSec = 30;
+      systemd.services = lib.concatMapAttrs (name: vm:
+        lib.optionalAttrs vm.writableStore (
+          import ./store-overlay/host.nix { inherit name lib; }
+        ) // lib.optionalAttrs (vm.pciPassthrough != []) {
+          # PCI unbinding can flake on first attempt; retry with backoff so the
+          # VM doesn't fail-to-start on a transient driver-busy.
+          "microvm-pci-devices@${name}" = {
+            serviceConfig = {
+              RestartMode = "direct";
+              Restart = "on-failure";
+              RestartSec = "5s";
+              StartLimitBurst = 3;
+              StartLimitIntervalSec = 30;
+            };
           };
-        };
-      }) enabledVms;
+        }
+      ) enabledVms;
 
       assertions = [
-        {
-          assertion = (config.boot.kernel.sysctl."net.ipv4.ip_forward" == 1 ||
-                       config.boot.kernel.sysctl."net.ipv4.ip_forward" == "1") &&
-                      (config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == 1 ||
-                       config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == "1");
-          message = ''
-            The forest module requires IP forwarding to be enabled for NAT to work.
-            Forest sets these via lib.mkDefault, so something in your config has
-            overridden them back to off. Either drop that override or accept that
-            forest VMs won't reach the network:
-
-            boot.kernel.sysctl = {
-              "net.ipv4.ip_forward" = 1;
-              "net.ipv6.conf.all.forwarding" = 1;
-            };
-          '';
-        }
         {
           assertion = (lib.length vmNames) <= 245;
           message = ''

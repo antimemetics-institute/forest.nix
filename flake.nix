@@ -24,22 +24,16 @@
       });
     in {
 
-      nixosModules.default = { ... }@args: import ./forest (args // {
-        inherit microvm sops-nix;
-      });
+      nixosModules.default = import ./forest {
+        microvmSrc = microvm;
+        sopsNixSrc = sops-nix;
+      };
 
       checks = forAllSystems ({ pkgs, ... }:
-        let results = import ./tests { inherit pkgs; };
-        in {
-          utils =
-            if results.allPassed
-            then pkgs.runCommand "forest-utils-tests" {} "echo all tests passed; touch $out"
-            else pkgs.runCommand "forest-utils-tests-failed" {
-              failure = results.summary;
-            } ''
-              printf '%s\n' "$failure"
-              exit 1
-            '';
-        });
+        (import ./tests { inherit pkgs; }).checks);
+
+      devShells = forAllSystems ({ pkgs, ... }: {
+        default = import ./shell.nix { inherit pkgs; };
+      });
     };
 }

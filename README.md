@@ -24,7 +24,7 @@ We early, APIs may shift.
 
 ## Quick start
 
-Add forest as a flake input:
+### Flake
 
 ```nix
 {
@@ -47,6 +47,31 @@ Add forest as a flake input:
   };
 }
 ```
+
+### Without flakes
+
+`forest.nix` ships a plain `default.nix` that pins `microvm.nix` and `sops-nix` via [npins](https://github.com/andir/npins) — no flake required at any layer:
+
+```nix
+# /etc/nixos/configuration.nix
+{ ... }: {
+  imports = [
+    (import (builtins.fetchTarball {
+      url    = "https://github.com/antimemetics-institute/forest.nix/archive/<rev>.tar.gz";
+      sha256 = "...";
+    }) {})
+    ./host.nix
+  ];
+}
+```
+
+To override forest's bundled pins (e.g. share an already-pinned `microvm.nix`):
+
+```nix
+(import forest-source { microvmSrc = my-microvm-source; })
+```
+
+(Flake users override the same way they override any flake input — `inputs.forest.inputs.microvm.url = "...";` or `.follows = "...";`.)
 
 Then in `host.nix`:
 
