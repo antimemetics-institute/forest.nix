@@ -102,13 +102,13 @@ To override forest's bundled pins (e.g. share an already-pinned `microvm.nix`):
 ## CLI
 
 ```
-forest list                  # all forest VMs and their state
-forest status   <vm>         # systemd status
-forest up       <vm>         # start
-forest down     <vm>         # stop
-forest restart  <vm>         # restart
-forest logs     <vm>         # journalctl -u microvm@<vm>
-forest journal  <vm>         # the VM's own journal
+forest list                       # all forest VMs and their state
+forest status   <vm>              # systemd status
+forest up       <vm>              # start
+forest down     <vm>              # stop
+forest restart  <vm>              # restart
+forest logs     <vm> [args...]    # journalctl -u microvm@<vm> (extra args go to journalctl, e.g. -f)
+forest journal  <vm> [args...]    # the VM's own journal (extra args go to journalctl, e.g. -b 0)
 ```
 
 Tab-completion is installed for bash.

@@ -6,17 +6,17 @@ vm="${2:-}"
 
 usage() {
   cat <<'EOF'
-Usage: forest <command> [vm]
+Usage: forest <command> [vm] [args...]
 
 Commands:
-  list                List forest VMs and their state
-  status   <vm>       Show systemd status for a VM
-  up       <vm>       Start a VM
-  down     <vm>       Stop a VM
-  restart  <vm>       Restart a VM
-  logs     <vm>       Show journalctl for the systemd unit
-  journal  <vm>       Open the VM's own journal
-  help                Show this message
+  list                       List forest VMs and their state
+  status   <vm>              Show systemd status for a VM
+  up       <vm>              Start a VM
+  down     <vm>              Stop a VM
+  restart  <vm>              Restart a VM
+  logs     <vm> [args...]    Show journalctl for the systemd unit (extra args go to journalctl)
+  journal  <vm> [args...]    Open the VM's own journal (extra args go to journalctl)
+  help                       Show this message
 EOF
 }
 
@@ -50,11 +50,13 @@ case "$cmd" in
     ;;
   logs)
     require_vm
-    journalctl -u "microvm@$vm"
+    shift 2
+    journalctl -u "microvm@$vm" "$@"
     ;;
   journal)
     require_vm
-    sudo journalctl -i "/var/lib/microvms/$vm/logs/journal/"*"/system.journal"
+    shift 2
+    sudo journalctl -i "/var/lib/microvms/$vm/logs/journal/"*"/system.journal" "$@"
     ;;
   help|-h|--help)
     usage

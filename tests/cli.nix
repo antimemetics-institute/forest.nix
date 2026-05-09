@@ -73,6 +73,8 @@ in pkgs.runCommandLocal "forest-cli-tests" {
   run restart web; expect "restart"     "sudo systemctl restart microvm@web"
   run logs web;    expect "logs"        "journalctl -u microvm@web"
   run journal web; expect "journal"     "sudo journalctl -i /var/lib/microvms/web/logs/journal/*/system.journal"
+  run logs web -f;            expect "logs passthrough"    "journalctl -u microvm@web -f"
+  run journal web -b 0;       expect "journal passthrough" "sudo journalctl -i /var/lib/microvms/web/logs/journal/*/system.journal -b 0"
 
   # ---- error paths ----
   expect_rc 2 "missing-vm exits 2"     up
