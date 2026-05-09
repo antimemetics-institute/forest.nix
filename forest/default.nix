@@ -223,6 +223,62 @@ let
           ]
         '';
       };
+
+      portForwards = mkOption {
+        type = types.listOf (types.submodule {
+          options = {
+            port = mkOption {
+              type = types.port;
+              description = "Port inside the VM where the service listens.";
+            };
+            hostPort = mkOption {
+              type = types.nullOr types.port;
+              default = null;
+              description = ''
+                Port the host accepts the connection on. Defaults to `port`.
+              '';
+            };
+            protocol = mkOption {
+              type = types.enum [ "tcp" "udp" "both" ];
+              description = "Protocol to forward (tcp, udp, or both).";
+            };
+            interface = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              description = ''
+                Host interface (iifname) to scope the forward to. Optional.
+                Useful for "only forward packets arriving on tailscale0/wg0/...".
+              '';
+            };
+            bindAddress = mkOption {
+              type = types.nullOr (types.either types.str (types.listOf types.str));
+              default = null;
+              description = ''
+                Host destination address(es) to scope the forward to. A single
+                string or a list of strings. The IP family of each address is
+                inferred (colon → IPv6); use the sentinels "0.0.0.0" and "::"
+                to mean "any address" of that family.
+
+                If left null and `interface` is set, defaults to
+                [ "0.0.0.0" "::" ] (any address, both families). At least one
+                of `interface` / `bindAddress` must be set explicitly — leaving
+                both unset is rejected at eval time so a forward can't quietly
+                expose a port on every interface.
+              '';
+            };
+          };
+        });
+        default = [];
+        description = ''
+          List of inbound port forwards (DNAT) into this VM. Forest emits
+          prerouting rules; you bring your own tunnel (tailscale, wireguard,
+          a public NIC). Connection tracking handles return traffic.
+          Example: [
+            { port = 22; protocol = "tcp"; interface = "tailscale0"; }
+            { port = 80; hostPort = 8080; protocol = "tcp"; bindAddress = "203.0.113.5"; }
+          ]
+        '';
+      };
     };
     config =
       let

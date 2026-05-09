@@ -93,6 +93,10 @@ in {
             type nat hook postrouting priority srcnat; policy accept;
 ${forestUtils.generateNat4Rules cfg.externalInterface internetVms}
           }
+          chain prerouting {
+            type nat hook prerouting priority dstnat; policy accept;
+${forestUtils.generatePortForwardRules "ipv4" enabledVms}
+          }
         '';
       };
 
@@ -102,6 +106,10 @@ ${forestUtils.generateNat4Rules cfg.externalInterface internetVms}
           chain postrouting {
             type nat hook postrouting priority 100; policy accept;
 ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
+          }
+          chain prerouting {
+            type nat hook prerouting priority dstnat; policy accept;
+${forestUtils.generatePortForwardRules "ipv6" enabledVms}
           }
         '';
       };
@@ -143,6 +151,27 @@ ${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
           };
         '';
       }
-    ];
+    ]
+    # Each portForward must scope itself: at least one of `interface` or
+    # `bindAddress` must be explicitly set. The bindAddress default is null;
+    # leaving both unset is a footgun (forwards every interface silently), so
+    # we make the user opt in by writing the any-address tokens out.
+    ++ lib.flatten (lib.mapAttrsToList (vmName: vm:
+      lib.imap0 (i: pf: {
+        assertion = pf.interface != null || pf.bindAddress != null;
+        message = ''
+          forest.vms.${vmName}.portForwards[${toString i}] (port ${toString pf.port},
+          protocol ${pf.protocol}) sets neither `interface` nor `bindAddress`.
+          One of them must be set so the forward is scoped to a specific
+          interface or destination address — otherwise every inbound packet
+          to that port on any interface would be redirected to the VM.
+
+          Pick one:
+            interface   = "tailscale0";        # tailnet only
+            bindAddress = "203.0.113.5";       # specific public v4 only
+            bindAddress = [ "0.0.0.0" "::" ];  # explicit "any address, both families"
+        '';
+      }) vm.portForwards
+    ) enabledVms);
   };
 }

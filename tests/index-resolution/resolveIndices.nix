@@ -1,4 +1,4 @@
-{ lib, utils, runners }:
+{ lib, utils, runners, ... }:
 
 let
   # Each input maps a VM name to its explicit `index` (or null for auto).

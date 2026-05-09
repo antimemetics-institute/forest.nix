@@ -1,4 +1,4 @@
-{ lib, utils, runners }:
+{ lib, utils, runners, ... }:
 
 # Whole-module eval test: instantiates the forest module via `lib.evalModules`
 # and confirms that the user-facing API actually wires `resolveIndices` into

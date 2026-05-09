@@ -151,6 +151,47 @@ rec {
       "            ip6 saddr ${vm.ipv6} oifname \"${extIface}\" masquerade"
     ) vms);
 
+  # Generate prerouting DNAT rules for one IP family ("ipv4" or "ipv6").
+  # `vms` is the attrset of enabled VMs; each carries `.ipv4`, `.ipv6`, and
+  # `.portForwards` (list of { port, hostPort, protocol, interface, bindAddress }).
+  #
+  # bindAddress is null (caller default = both any-tokens), a string, or a list of
+  # strings. Each address is classified by family via `isIpv6`; sentinels
+  # "0.0.0.0" and "::" mean "any" and emit no `daddr` match. Family of the
+  # whole rule is fixed by `family`; addresses of the wrong family are skipped.
+  generatePortForwardRules = family: vms:
+    let
+      isV6 = family == "ipv6";
+      famPrefix = if isV6 then "ip6" else "ip";
+      isAnyAddr = addr: addr == "0.0.0.0" || addr == "::";
+      coerceBindAddress = pf:
+        let b = pf.bindAddress;
+        in if b == null then [ "0.0.0.0" "::" ]
+           else if lib.isList b then b
+           else [ b ];
+      expandProto = pf:
+        if pf.protocol == "both"
+        then [ (pf // { protocol = "tcp"; }) (pf // { protocol = "udp"; }) ]
+        else [ pf ];
+      perPortForward = vm: pf:
+        let
+          addrs = lib.filter
+            (a: if isV6 then isIpv6 a else !isIpv6 a)
+            (coerceBindAddress pf);
+          ifacePart = if pf.interface != null then ''iifname "${pf.interface}" '' else "";
+          hostPort = if pf.hostPort != null then pf.hostPort else pf.port;
+          vmIp = if isV6 then vm.ipv6 else vm.ipv4;
+          target = if isV6 then "[${vmIp}]:${toString pf.port}" else "${vmIp}:${toString pf.port}";
+          renderOne = addr:
+            let daddrPart = if isAnyAddr addr then "" else "${famPrefix} daddr ${addr} ";
+            in "            ${ifacePart}${daddrPart}${pf.protocol} dport ${toString hostPort} dnat to ${target}";
+        in
+          lib.map renderOne addrs;
+      perVm = vm:
+        lib.concatMap (perPortForward vm) (lib.concatMap expandProto vm.portForwards);
+    in
+      lib.concatStringsSep "\n" (lib.concatMap perVm (lib.attrValues vms));
+
   # Generate VM-to-VM connection rules across the whole forest. `enabledVms`
   # is the attrset of enabled VMs; each carries `.ipv4`, `.ipv6`, and `.dependsOn`.
   generateAllVmConnectionRules = enabledVms:

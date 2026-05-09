@@ -33,7 +33,7 @@ let
       };
   };
 
-  args = { inherit lib utils runners; };
+  args = { inherit lib pkgs utils runners; };
 
   importTestsFrom = dir:
     let

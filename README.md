@@ -137,6 +137,36 @@ forest.vms.foo.dns = {
 
 Global defaults live under `forest.dns.{servers,constrain}` and are inherited by every VM unless overridden.
 
+### Inbound port forwards
+
+`portForwards` exposes a port inside the VM by DNATing inbound packets on the host. Forest doesn't enforce a tunnel — bring your own (tailscale, wireguard, a public NIC) and tell forest which interface or address to forward from.
+
+```nix
+forest.vms.dev.portForwards = [
+  # ssh on tailnet only — both v4 + v6, any tailscale address
+  { port = 22; protocol = "tcp"; interface = "tailscale0"; }
+
+  # http on a specific public v4 address, host port 8080 → vm port 80
+  { port = 80; hostPort = 8080; protocol = "tcp"; bindAddress = "203.0.113.5"; }
+];
+```
+
+Per entry:
+
+| field         | type                  | required | description                                                                 |
+|---------------|-----------------------|----------|-----------------------------------------------------------------------------|
+| `port`        | int                   | yes      | Port inside the VM.                                                         |
+| `hostPort`    | int                   | no       | Port on the host. Defaults to `port`.                                       |
+| `protocol`    | `tcp` / `udp` / `both`| yes      | —                                                                           |
+| `interface`   | str                   | no       | Host interface (`iifname`) the forward applies to.                          |
+| `bindAddress` | str or list of str    | no       | Host destination address(es). Family inferred per address; `0.0.0.0` / `::` are "any" sentinels. |
+
+At least one of `interface` / `bindAddress` must be set explicitly — leaving both unset fails at eval time, so a forward can't quietly redirect a port on every interface. If you genuinely want all interfaces, write `bindAddress = [ "0.0.0.0" "::" ]`.
+
+When `bindAddress` is unset and `interface` is, it defaults to `[ "0.0.0.0" "::" ]` (any address, both families). The interface filter does the scoping.
+
+For tailscale specifically: enable `services.tailscale.enable = true;` on the host the usual way and reference `interface = "tailscale0"`. Forest's nftables config doesn't conflict with tailscaled's own rules; see the [NixOS wiki page on Tailscale](https://wiki.nixos.org/wiki/Tailscale) for the host-level setup.
+
 ## Secrets (sops-nix)
 
 ```nix
@@ -181,6 +211,7 @@ By default, the VMs use cppnix specific experimental feature to enable a writabl
 | `dns.servers`     | list of str  | `forest.dns.servers`            | DNS servers configured in the VM.                 |
 | `dns.constrain`   | bool         | `forest.dns.constrain`          | Drop DNS to anything outside `dns.servers`.       |
 | `dependsOn`       | list         | `[]`                            | Allowed outbound connections to other VMs.        |
+| `portForwards`    | list         | `[]`                            | Inbound DNAT into the VM (tailscale, wg, NIC).    |
 | `ssh.users`       | list         | `[]`                            | Create users with SSH access (opens sshd).        |
 | `sops`            | submodule    | disabled                        | Per-VM sops-nix integration.                      |
 
