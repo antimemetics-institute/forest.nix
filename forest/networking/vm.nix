@@ -1,6 +1,7 @@
 # Per-VM networking: hostname, addresses, gateway, DNS, and dependsOn
 # /etc/hosts entries. Imported per-VM by the forest module.
 { name, vm, cfg, lib, enabledVms }:
+{ options, ... }:
 {
   networking.hostName = lib.mkForce name;
   networking.domain = lib.mkForce "forest.local";
@@ -29,8 +30,16 @@
     };
   };
 
+  # Feature-detect the resolved module shape (see forest/networking/host.nix
+  # for the full rationale). 25.11 only has extraConfig; newer nixpkgs has
+  # the structured `settings` attr.
   services.resolved = {
     enable = true;
+  } // (if options.services.resolved ? settings then {
     settings.Resolve.FallbackDNS = [];
-  };
+  } else {
+    extraConfig = ''
+      FallbackDNS=
+    '';
+  });
 }
