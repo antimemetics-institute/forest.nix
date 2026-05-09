@@ -333,7 +333,7 @@ in
     };
 
     common = mkOption {
-      type = types.deferredModule;
+      type = forestUtils.shorthandDeferredModule;
       default = {};
       description = ''
         Module merged into every VM. Reuses the per-VM option schema, so any
