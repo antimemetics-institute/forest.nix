@@ -27,7 +27,7 @@ let
     web = vmWith { ipv4 = "192.168.69.10"; ipv6 = "fd69::10"; servers = [ "1.1.1.1" "2606:4700:4700::1111" ]; };
   };
 
-  # VM with an empty server list — emits no input or constrain rules for that VM.
+  # VM with an empty server list — emits no input or restrict rules for that VM.
   emptyServersVm = {
     web = vmWith { ipv4 = "192.168.69.10"; ipv6 = "fd69::10"; servers = [ ]; };
   };
@@ -79,9 +79,9 @@ let
     emptyVms = { input = {}; expected = ""; };
   };
 
-  # ── generateDnsConstrainRules ────────────────────────────────────
+  # ── generateDnsRestrictRules ─────────────────────────────────────
 
-  testCasesDnsConstrain = {
+  testCasesDnsRestrict = {
     singleV4Server = {
       input = {
         web = vmWith { ipv4 = "192.168.69.10"; ipv6 = "fd69::10"; servers = [ "1.1.1.1" ]; };
@@ -127,7 +127,7 @@ let
             ip6 saddr fd69::10 udp dport 53 drop
             ip6 saddr fd69::10 tcp dport 53 drop'';
     };
-    noConstrainedVms = { input = {}; expected = ""; };
+    noRestrictedVms = { input = {}; expected = ""; };
   };
 
   # ── generateInternetForwardRules / NAT (unchanged sigs) ──────────
@@ -162,8 +162,8 @@ let
 in {
   generateDnsInputRules =
     lib.mapAttrs (runners.runStringTest utils.generateDnsInputRules) testCasesDnsInput;
-  generateDnsConstrainRules =
-    lib.mapAttrs (runners.runStringTest utils.generateDnsConstrainRules) testCasesDnsConstrain;
+  generateDnsRestrictRules =
+    lib.mapAttrs (runners.runStringTest utils.generateDnsRestrictRules) testCasesDnsRestrict;
   generateInternetForwardRules =
     lib.mapAttrs (runners.runStringTest utils.generateInternetForwardRules) testCasesForward;
   generateNat4Rules =

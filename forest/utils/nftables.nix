@@ -103,10 +103,10 @@ rec {
     in
       lib.concatStringsSep "\n" nonEmpty;
 
-  # Per-VM DNS constrain rules at the forward chain. For each constrained VM,
+  # Per-VM DNS restrict rules at the forward chain. For each restricted VM,
   # allow DNS to its configured servers (per IP version) and drop everything
   # else on port 53. Order matters: accepts must precede the catch-all drops.
-  generateDnsConstrainRules = vms:
+  generateDnsRestrictRules = vms:
     let
       perVm = vm:
         let
@@ -158,7 +158,7 @@ rec {
 
   # Generate prerouting DNAT rules for one IP family ("ipv4" or "ipv6").
   # `vms` is the attrset of enabled VMs; each carries `.ipv4`, `.ipv6`, and
-  # `.portForwards` (list of { port, hostPort, protocol, interface, bindAddress }).
+  # `.forwardPorts` (list of { port, hostPort, protocol, interface, bindAddress }).
   #
   # bindAddress is null (caller default = both any-tokens), a string, or a list of
   # strings. Each address is classified by family via `isIpv6`; sentinels
@@ -193,7 +193,7 @@ rec {
         in
           lib.map renderOne addrs;
       perVm = vm:
-        lib.concatMap (perPortForward vm) (lib.concatMap expandProto vm.portForwards);
+        lib.concatMap (perPortForward vm) (lib.concatMap expandProto vm.forwardPorts);
     in
       lib.concatStringsSep "\n" (lib.concatMap perVm (lib.attrValues vms));
 

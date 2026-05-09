@@ -9,10 +9,6 @@ let
 
   userSubmodule = { ... }: {
     options = {
-      name = mkOption {
-        type = types.str;
-        description = "Username.";
-      };
       sshKeys = mkOption {
         type = types.listOf types.str;
         default = [];
@@ -95,13 +91,13 @@ let
         description = "Vsock CID derived from index.";
       };
 
-      memory = mkOption {
+      memorySize = mkOption {
         type = types.int;
         default = 2048;
         description = "Memory allocation in MB.";
       };
 
-      vcpu = mkOption {
+      cores = mkOption {
         type = types.int;
         default = 4;
         description = "Number of virtual CPUs.";
@@ -158,11 +154,12 @@ let
       };
 
       ssh.users = mkOption {
-        type = types.listOf (types.submodule userSubmodule);
-        default = [];
+        type = types.attrsOf (types.submodule userSubmodule);
+        default = {};
         description = ''
-          Users to create with SSH access to this VM. Each entry is
-          { name; sshKeys; shell; }. When non-empty, sshd opens to the host network.
+          Users to create with SSH access to this VM, keyed by username. Each
+          entry is { sshKeys; shell; }. When non-empty, sshd opens to the
+          host network.
         '';
       };
 
@@ -179,10 +176,10 @@ let
           defaultText = literalExpression "config.forest.dns.servers";
           description = "DNS servers this VM is configured to use.";
         };
-        constrain = mkOption {
+        restrict = mkOption {
           type = types.bool;
-          default = cfg.dns.constrain;
-          defaultText = literalExpression "config.forest.dns.constrain";
+          default = cfg.dns.restrict;
+          defaultText = literalExpression "config.forest.dns.restrict";
           description = ''
             If true, this VM may only resolve via dns.servers — DNS to any other
             destination is dropped at the firewall.
@@ -224,7 +221,7 @@ let
         '';
       };
 
-      portForwards = mkOption {
+      forwardPorts = mkOption {
         type = types.listOf (types.submodule {
           options = {
             port = mkOption {
@@ -335,22 +332,20 @@ in
       default = {};
       description = ''
         Module merged into every VM. Reuses the per-VM option schema, so any
-        VM-level option (config, ssh.users, memory, dns, ...) can be set here
-        as a shared default or addition.
+        VM-level option (config, ssh.users, memorySize, dns, ...) can be set
+        here as a shared default or addition.
 
         Definitions follow normal module-system merge rules:
-          - lists (e.g. ssh.users) concatenate with per-VM definitions
+          - attrsets (e.g. ssh.users) merge per-key with per-VM definitions;
+            same key in both is a conflict (use lib.mkForce to override)
           - the inner `config` module merges as modules always do
-          - scalars (e.g. memory) conflict with per-VM definitions; wrap in
-            lib.mkDefault to make them overridable
-
-        A per-VM lib.mkForce on a list cleanly drops the common values for
-        that VM.
+          - scalars (e.g. memorySize) conflict with per-VM definitions; wrap
+            in lib.mkDefault to make them overridable
 
         Example:
           forest.common = {
-            ssh.users = [{ name = "ops"; sshKeys = [ "ssh-ed25519 ..." ]; }];
-            memory = lib.mkDefault 4096;
+            ssh.users.ops.sshKeys = [ "ssh-ed25519 ..." ];
+            memorySize = lib.mkDefault 4096;
             config = { pkgs, ... }: {
               environment.systemPackages = [ pkgs.htop ];
             };
@@ -405,11 +400,11 @@ in
           can override individually.
         '';
       };
-      constrain = mkOption {
+      restrict = mkOption {
         type = types.bool;
         default = false;
         description = ''
-          Default for per-VM dns.constrain. If true, VMs may only resolve via
+          Default for per-VM dns.restrict. If true, VMs may only resolve via
           their dns.servers — DNS to any other destination is dropped at the firewall.
         '';
       };
@@ -465,7 +460,7 @@ in
               inherit sopsNixSrc;
               defaultSopsFile = vm.sops.defaultSopsFile;
             })
-            ++ lib.optional (vm.ssh.users != []) (import ./users.nix {
+            ++ lib.optional (vm.ssh.users != {}) (import ./users.nix {
               users = vm.ssh.users;
             });
 
@@ -473,8 +468,8 @@ in
 
             microvm = {
               hypervisor = vm.hypervisor;
-              mem = vm.memory;
-              vcpu = vm.vcpu;
+              mem = vm.memorySize;
+              vcpu = vm.cores;
               vsock.cid = vm.vsockCid;
               devices = lib.map (path: { bus = "pci"; inherit path; }) vm.pciPassthrough;
 

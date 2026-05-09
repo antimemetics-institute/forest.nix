@@ -3,21 +3,18 @@
 { lib, ... }:
 
 let
-  names = lib.map (u: u.name) users;
+  names = lib.attrNames users;
 in {
-  users.users = lib.listToAttrs (lib.map (u: {
-    inherit (u) name;
-    value = {
-      isNormalUser = true;
-      extraGroups = [ "wheel" ];
-      shell = u.shell;
-      openssh.authorizedKeys.keys = u.sshKeys;
-    };
-  }) users);
+  users.users = lib.mapAttrs (_: u: {
+    isNormalUser = true;
+    extraGroups = [ "wheel" ];
+    shell = u.shell;
+    openssh.authorizedKeys.keys = u.sshKeys;
+  }) users;
 
   # virtiofsd prevents createHome from working
-  systemd.tmpfiles.rules = lib.map (u:
-    "d /home/${u.name} 0700 ${u.name} users -"
+  systemd.tmpfiles.rules = lib.mapAttrsToList (name: _:
+    "d /home/${name} 0700 ${name} users -"
   ) users;
 
   services.openssh = {

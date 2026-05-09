@@ -9,7 +9,7 @@ let
   forestUtils = import ../utils { inherit lib; };
   enabledVms = lib.filterAttrs (_: vm: vm.enable) cfg.vms;
   internetVms = lib.filterAttrs (_: vm: vm.internetAccess) enabledVms;
-  constrainedVms = lib.filterAttrs (_: vm: vm.dns.constrain) enabledVms;
+  restrictedVms = lib.filterAttrs (_: vm: vm.dns.restrict) enabledVms;
 in {
   config = mkIf cfg.enable {
     networking.hosts = mkMerge (lib.mapAttrsToList (name: vm: {
@@ -74,8 +74,8 @@ in {
             # Allow established/related connections (handles return traffic)
             ct state { established, related } accept comment "Allow established connections"
 
-            # Per-VM DNS constrain rules (allow configured servers, drop the rest)
-            ${forestUtils.generateDnsConstrainRules constrainedVms}
+            # Per-VM DNS restrict rules (allow configured servers, drop the rest)
+            ${forestUtils.generateDnsRestrictRules restrictedVms}
 
             # VM-specific dependency rules
             ${forestUtils.generateAllVmConnectionRules enabledVms}
@@ -152,7 +152,7 @@ ${forestUtils.generatePortForwardRules "ipv6" enabledVms}
         '';
       }
     ]
-    # Each portForward must scope itself: at least one of `interface` or
+    # Each forwardPort must scope itself: at least one of `interface` or
     # `bindAddress` must be explicitly set. The bindAddress default is null;
     # leaving both unset is a footgun (forwards every interface silently), so
     # we make the user opt in by writing the any-address tokens out.
@@ -160,7 +160,7 @@ ${forestUtils.generatePortForwardRules "ipv6" enabledVms}
       lib.imap0 (i: pf: {
         assertion = pf.interface != null || pf.bindAddress != null;
         message = ''
-          forest.vms.${vmName}.portForwards[${toString i}] (port ${toString pf.port},
+          forest.vms.${vmName}.forwardPorts[${toString i}] (port ${toString pf.port},
           protocol ${pf.protocol}) sets neither `interface` nor `bindAddress`.
           One of them must be set so the forward is scoped to a specific
           interface or destination address — otherwise every inbound packet
@@ -171,7 +171,7 @@ ${forestUtils.generatePortForwardRules "ipv6" enabledVms}
             bindAddress = "203.0.113.5";       # specific public v4 only
             bindAddress = [ "0.0.0.0" "::" ];  # explicit "any address, both families"
         '';
-      }) vm.portForwards
+      }) vm.forwardPorts
     ) enabledVms);
   };
 }

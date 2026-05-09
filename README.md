@@ -11,7 +11,7 @@ forest.vms.web.config = {
 ## What you get
 
 - **Containers-like interface on top of microvm-nix.** Declare a VM the way you'd declare a NixOS container — one attrset of options, one config module — but with hardware isolation and a hypervisor instead of a shared kernel.
-- **Networking generated from your declarations.** Bridge, NAT, IPv4/IPv6, default-deny inter-VM firewalling, DNS — all derived from `forest.vms.*`. Open specific ports between VMs with `dependsOn`, cut a VM off from the public internet with `internetAccess = false`, force DNS through a single resolver with `dns.constrain = true`. All configurable, sane defaults.
+- **Networking generated from your declarations.** Bridge, NAT, IPv4/IPv6, default-deny inter-VM firewalling, DNS — all derived from `forest.vms.*`. Open specific ports between VMs with `dependsOn`, cut a VM off from the public internet with `internetAccess = false`, force DNS through a single resolver with `dns.restrict = true`. All configurable, sane defaults.
 - **Lightweight sops-nix integration.** Each VM gets a stable SSH host key that doubles as its age identity automatically — no manual `neededForBoot`, `sshKeyPaths`, or per-VM key plumbing for you to debug.
 - **Writable nix store inside the VM, without the 20-minute rebuild tax.** Forest wires up cppnix's `local-overlay-store` experimental feature so `/nix/store` is shared read-only from the host and only the VM's deltas live in its own image. Confuses gc (it can't see the lower layer's references) but doesn't break it. Toggle with `writableStore`.
 
@@ -127,18 +127,18 @@ To force a VM to only resolve via specific servers:
 ```nix
 forest.vms.foo.dns = {
   servers = [ "10.0.0.53" ];
-  constrain = true;          # drop DNS to anywhere else at the firewall
+  restrict = true;           # drop DNS to anywhere else at the firewall
 };
 ```
 
-Global defaults live under `forest.dns.{servers,constrain}` and are inherited by every VM unless overridden.
+Global defaults live under `forest.dns.{servers,restrict}` and are inherited by every VM unless overridden.
 
 ### Inbound port forwards
 
-`portForwards` exposes a port inside the VM by DNATing inbound packets on the host. Forest doesn't enforce a tunnel — bring your own (tailscale, wireguard, a public NIC) and tell forest which interface or address to forward from.
+`forwardPorts` exposes a port inside the VM by DNATing inbound packets on the host. Forest doesn't enforce a tunnel — bring your own (tailscale, wireguard, a public NIC) and tell forest which interface or address to forward from.
 
 ```nix
-forest.vms.dev.portForwards = [
+forest.vms.dev.forwardPorts = [
   # ssh on tailnet only — both v4 + v6, any tailscale address
   { port = 22; protocol = "tcp"; interface = "tailscale0"; }
 
@@ -197,18 +197,18 @@ By default, the VMs use cppnix specific experimental feature to enable a writabl
 | `enable`          | bool         | `true`                          | Whether this VM is part of the forest.            |
 | `index`           | int or null  | `null` (auto-assigned)          | Pin to a stable slot (0–244). See [Networking](#networking). |
 | `hypervisor`      | str          | `"cloud-hypervisor"`            | Any microvm-supported hypervisor.                 |
-| `memory`          | int (MB)     | `2048`                          | Memory allocation.                                |
-| `vcpu`            | int          | `4`                             | Number of vCPUs.                                  |
+| `memorySize`      | int (MB)     | `2048`                          | Memory allocation.                                |
+| `cores`           | int          | `4`                             | Number of vCPUs.                                  |
 | `stateVersion`    | str          | `"25.11"`                       | `system.stateVersion` for the VM.                 |
 | `writableStore`   | bool         | `true`                          | Writable nix store overlay (wiped on each start). |
 | `pciPassthrough`  | list of str  | `[]`                            | PCI device addresses to pass through (qemu only). |
 | `config`          | module       | _required_                      | NixOS module for the VM.                          |
 | `internetAccess`  | bool         | `true`                          | Allow public internet via host NAT.               |
 | `dns.servers`     | list of str  | `forest.dns.servers`            | DNS servers configured in the VM.                 |
-| `dns.constrain`   | bool         | `forest.dns.constrain`          | Drop DNS to anything outside `dns.servers`.       |
+| `dns.restrict`    | bool         | `forest.dns.restrict`           | Drop DNS to anything outside `dns.servers`.       |
 | `dependsOn`       | list         | `[]`                            | Allowed outbound connections to other VMs.        |
-| `portForwards`    | list         | `[]`                            | Inbound DNAT into the VM (tailscale, wg, NIC).    |
-| `ssh.users`       | list         | `[]`                            | Create users with SSH access (opens sshd).        |
+| `forwardPorts`    | list         | `[]`                            | Inbound DNAT into the VM (tailscale, wg, NIC).    |
+| `ssh.users`       | attrs        | `{}`                            | Create users with SSH access (opens sshd).        |
 | `sops`            | submodule    | disabled                        | Per-VM sops-nix integration.                      |
 
 The readonly fields `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` are derived from the VM's resolved index (explicit if set, otherwise auto-assigned).
@@ -226,16 +226,16 @@ The readonly fields `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` are
 | `vmGateway6`        | str         | `"fd69::1"`                     |
 | `bridgeInterface`   | str         | `"forest"`                      |
 | `dns.servers`       | list of str | host's `networking.nameservers` |
-| `dns.constrain`     | bool        | `false`                         |
+| `dns.restrict`      | bool        | `false`                         |
 
 ### `common`
 
-A module merged into every VM, reusing the per-VM option schema. Any VM-level option (`config`, `ssh.users`, `memory`, `dns`, ...) can be set here as a shared default or addition.
+A module merged into every VM, reusing the per-VM option schema. Any VM-level option (`config`, `ssh.users`, `memorySize`, `dns`, ...) can be set here as a shared default or addition.
 
 ```nix
 forest.common = {
-  ssh.users = [{ name = "ops"; sshKeys = [ "ssh-ed25519 AAAA..." ]; }];
-  memory = lib.mkDefault 4096;
+  ssh.users.ops.sshKeys = [ "ssh-ed25519 AAAA..." ];
+  memorySize = lib.mkDefault 4096;
   config = { pkgs, ... }: {
     imports = [ ./vm-base.nix ];
     boot.kernelPackages = pkgs.linuxPackages_latest;
@@ -246,21 +246,18 @@ forest.common = {
 
 Definitions follow normal module-system merge rules:
 
-- **lists** (e.g. `ssh.users`) concatenate with per-VM definitions — every VM gets the common entries plus its own.
+- **attrsets** (e.g. `ssh.users`) merge per-key with per-VM definitions — every VM gets the common entries plus its own. The same key declared in both is a conflict; use `lib.mkForce` to override.
 - **the inner `config` module** merges as modules always do.
-- **scalars** (e.g. `memory`) at normal priority will conflict with a per-VM definition; wrap in `lib.mkDefault` to make them overridable.
-
-A per-VM `lib.mkForce` on a list cleanly drops the common values for that VM.
+- **scalars** (e.g. `memorySize`) at normal priority will conflict with a per-VM definition; wrap in `lib.mkDefault` to make them overridable.
 
 ## SSH into a VM
 
 The simplest path is to declare users on the VM:
 
 ```nix
-forest.vms.web.ssh.users = [{
-  name = "alice";
+forest.vms.web.ssh.users.alice = {
   sshKeys = [ "ssh-ed25519 AAAA..." ];
-}];
+};
 ```
 
 This creates the user, opens sshd to the bridge, and disables password auth. From the host you can reach the VM at `web.forest.local` (entries are added to `/etc/hosts` for both host and guests).

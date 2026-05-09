@@ -1,6 +1,6 @@
 { lib, pkgs, ... }:
 
-# Assertion test for forest.vms.<name>.portForwards.
+# Assertion test for forest.vms.<name>.forwardPorts.
 #
 # We can't use `pkgs.nixos` here: forcing `config.assertions` through the full
 # NixOS module set drags in microvm.nix's host module, which (against current
@@ -10,7 +10,7 @@
 # So we stay light: declare just the `assertions` option ourselves, evaluate
 # forest, and filter the result by message text. forest's other assertions
 # (e.g. the IP-forwarding sysctl one) may fail in this stub environment —
-# we ignore those and only inspect ones that mention `portForwards`.
+# we ignore those and only inspect ones that mention `forwardPorts`.
 
 let
   sources = import ../../npins;
@@ -37,18 +37,18 @@ let
   }).config.assertions;
 
   # Message check first — `&&` is left-to-right, so we never force `.assertion`
-  # on non-portForward entries (forest has another assertion that reads
+  # on non-forwardPort entries (forest has another assertion that reads
   # boot.kernel.sysctl, undeclared in this minimal eval).
-  hasPortForwardFailure = vms:
+  hasForwardPortFailure = vms:
     lib.any
-      (a: lib.strings.hasInfix "portForwards" a.message && !a.assertion)
+      (a: lib.strings.hasInfix "forwardPorts" a.message && !a.assertion)
       (evalAssertions vms);
 
   testCases = {
     interfaceOnlyPasses = {
       input = {
         dev.config = {};
-        dev.portForwards = [{ port = 22; protocol = "tcp"; interface = "tailscale0"; }];
+        dev.forwardPorts = [{ port = 22; protocol = "tcp"; interface = "tailscale0"; }];
       };
       expected = false;
     };
@@ -56,7 +56,7 @@ let
     bindAddressOnlyPasses = {
       input = {
         dev.config = {};
-        dev.portForwards = [{ port = 80; protocol = "tcp"; bindAddress = "203.0.113.5"; }];
+        dev.forwardPorts = [{ port = 80; protocol = "tcp"; bindAddress = "203.0.113.5"; }];
       };
       expected = false;
     };
@@ -64,7 +64,7 @@ let
     explicitAnyTokensPass = {
       input = {
         dev.config = {};
-        dev.portForwards = [{ port = 80; protocol = "tcp"; bindAddress = [ "0.0.0.0" "::" ]; }];
+        dev.forwardPorts = [{ port = 80; protocol = "tcp"; bindAddress = [ "0.0.0.0" "::" ]; }];
       };
       expected = false;
     };
@@ -72,7 +72,7 @@ let
     unscopedFails = {
       input = {
         dev.config = {};
-        dev.portForwards = [{ port = 22; protocol = "tcp"; }];
+        dev.forwardPorts = [{ port = 22; protocol = "tcp"; }];
       };
       expected = true;
     };
@@ -80,10 +80,10 @@ let
 
   runCase = name: test: {
     inherit name;
-    actual = hasPortForwardFailure test.input;
+    actual = hasForwardPortFailure test.input;
     inherit (test) expected;
-    passed = hasPortForwardFailure test.input == test.expected;
+    passed = hasForwardPortFailure test.input == test.expected;
   };
 in {
-  portForwardsAssertions = lib.mapAttrs runCase testCases;
+  forwardPortsAssertions = lib.mapAttrs runCase testCases;
 }
