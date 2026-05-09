@@ -31,7 +31,6 @@ let
       ({ ... }: {
         _module.check = false;
         _module.args.pkgs = pkgs;
-        forest.externalInterface = "eth0";
         forest.vms = vms;
       })
     ];

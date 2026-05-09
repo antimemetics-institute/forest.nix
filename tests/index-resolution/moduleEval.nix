@@ -18,7 +18,6 @@ let
       })
       ({ ... }: {
         _module.check = false;
-        forest.externalInterface = "eth0";
       })
       ({ ... }: { forest.vms = vms; })
     ];

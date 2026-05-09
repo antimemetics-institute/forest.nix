@@ -139,16 +139,21 @@ rec {
             ip saddr ${vm.ipv4} accept
             ip6 saddr ${vm.ipv6} accept'') vms);
 
-  # IPv4 NAT masquerade rules for VMs with internet access.
-  generateNat4Rules = extIface: vms:
+  # IPv4 NAT masquerade rules for VMs with internet access. Scoped by
+  # `oifname != bridge` so the kernel's chosen egress interface is whatever
+  # gets masqueraded (wifi, wg, tailscale, ...) without forcing the user to
+  # name it. The negation excludes traffic looping back to the bridge —
+  # though in practice VM-to-VM stays inside the bridge and never reaches
+  # postrouting, the filter is cheap insurance.
+  generateNat4Rules = bridge: vms:
     lib.concatStringsSep "\n" (lib.mapAttrsToList (_: vm:
-      "            ip saddr ${vm.ipv4} oifname \"${extIface}\" masquerade"
+      "            ip saddr ${vm.ipv4} oifname != \"${bridge}\" masquerade"
     ) vms);
 
-  # IPv6 NAT masquerade rules for VMs with internet access.
-  generateNat6Rules = extIface: vms:
+  # IPv6 equivalent.
+  generateNat6Rules = bridge: vms:
     lib.concatStringsSep "\n" (lib.mapAttrsToList (_: vm:
-      "            ip6 saddr ${vm.ipv6} oifname \"${extIface}\" masquerade"
+      "            ip6 saddr ${vm.ipv6} oifname != \"${bridge}\" masquerade"
     ) vms);
 
   # Generate prerouting DNAT rules for one IP family ("ipv4" or "ipv6").

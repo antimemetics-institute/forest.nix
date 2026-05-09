@@ -74,13 +74,9 @@ Then in `host.nix`:
 
 ```nix
 { ... }: {
-  forest = {
-    externalInterface = "enp5s0";  # your physical/wifi interface
-
-    vms.web.config = {
-      services.nginx.enable = true;
-      networking.firewall.allowedTCPPorts = [ 80 ];
-    };
+  forest.vms.web.config = {
+    services.nginx.enable = true;
+    networking.firewall.allowedTCPPorts = [ 80 ];
   };
 }
 ```
@@ -224,7 +220,6 @@ The readonly fields `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` are
 | `enable`            | bool        | `true`                          |
 | `vms`               | attrs       | `{}`                            |
 | `common`            | module      | `{}`                            |
-| `externalInterface` | str         | _required_                      |
 | `vmSubnet`          | str         | `"192.168.69.0/24"`             |
 | `vmSubnet6`         | str         | `"fd69::/64"`                   |
 | `vmGateway`         | str         | `"192.168.69.1"`                |

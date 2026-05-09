@@ -91,7 +91,7 @@ in {
         content = ''
           chain postrouting {
             type nat hook postrouting priority srcnat; policy accept;
-${forestUtils.generateNat4Rules cfg.externalInterface internetVms}
+${forestUtils.generateNat4Rules cfg.bridgeInterface internetVms}
           }
           chain prerouting {
             type nat hook prerouting priority dstnat; policy accept;
@@ -105,7 +105,7 @@ ${forestUtils.generatePortForwardRules "ipv4" enabledVms}
         content = ''
           chain postrouting {
             type nat hook postrouting priority 100; policy accept;
-${forestUtils.generateNat6Rules cfg.externalInterface internetVms}
+${forestUtils.generateNat6Rules cfg.bridgeInterface internetVms}
           }
           chain prerouting {
             type nat hook prerouting priority dstnat; policy accept;

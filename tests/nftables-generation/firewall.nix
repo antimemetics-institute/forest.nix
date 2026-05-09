@@ -147,7 +147,7 @@ let
   testCasesNat4 = {
     singleVm = {
       input = singleVmInternet;
-      expected = "            ip saddr 192.168.69.10 oifname \"enp5s0\" masquerade";
+      expected = "            ip saddr 192.168.69.10 oifname != \"forest\" masquerade";
     };
     empty = { input = {}; expected = ""; };
   };
@@ -155,7 +155,7 @@ let
   testCasesNat6 = {
     singleVm = {
       input = singleVmInternet;
-      expected = "            ip6 saddr fd69::10 oifname \"enp5s0\" masquerade";
+      expected = "            ip6 saddr fd69::10 oifname != \"forest\" masquerade";
     };
     empty = { input = {}; expected = ""; };
   };
@@ -167,7 +167,7 @@ in {
   generateInternetForwardRules =
     lib.mapAttrs (runners.runStringTest utils.generateInternetForwardRules) testCasesForward;
   generateNat4Rules =
-    lib.mapAttrs (runners.runStringTest (utils.generateNat4Rules "enp5s0")) testCasesNat4;
+    lib.mapAttrs (runners.runStringTest (utils.generateNat4Rules "forest")) testCasesNat4;
   generateNat6Rules =
-    lib.mapAttrs (runners.runStringTest (utils.generateNat6Rules "enp5s0")) testCasesNat6;
+    lib.mapAttrs (runners.runStringTest (utils.generateNat6Rules "forest")) testCasesNat6;
 }

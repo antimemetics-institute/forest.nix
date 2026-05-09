@@ -358,11 +358,6 @@ in
       '';
     };
 
-    externalInterface = mkOption {
-      type = types.str;
-      description = "External interface for internet access (used for NAT masquerade).";
-    };
-
     vmSubnet = mkOption {
       type = types.str;
       default = "192.168.69.0/24";
