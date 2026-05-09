@@ -172,14 +172,19 @@ let
       dns = {
         servers = mkOption {
           type = types.listOf types.str;
-          default = cfg.dns.servers;
-          defaultText = literalExpression "config.forest.dns.servers";
-          description = "DNS servers this VM is configured to use.";
+          default = [ cfg.vmGateway cfg.vmGateway6 ];
+          defaultText = literalExpression "[ config.forest.vmGateway config.forest.vmGateway6 ]";
+          description = ''
+            DNS servers this VM resolves through. Defaults to the host bridge IPs;
+            with the default in place, forest runs a stub on the host (see
+            forest.serveDns) and the VM inherits whatever the host resolves to.
+
+            Override per-VM, or across all VMs via forest.common.dns.servers.
+          '';
         };
         restrict = mkOption {
           type = types.bool;
-          default = cfg.dns.restrict;
-          defaultText = literalExpression "config.forest.dns.restrict";
+          default = false;
           description = ''
             If true, this VM may only resolve via dns.servers — DNS to any other
             destination is dropped at the firewall.
@@ -383,31 +388,22 @@ in
       description = "Bridge interface for NAT and VM networking.";
     };
 
-    dns = {
-      servers = mkOption {
-        type = types.listOf types.str;
-        default =
-          if config.networking.nameservers != []
-          then config.networking.nameservers
-          else [ "1.1.1.1" "1.0.0.1" ];
-        defaultText = literalExpression ''
-          if config.networking.nameservers != []
-          then config.networking.nameservers
-          else [ "1.1.1.1" "1.0.0.1" ]
-        '';
-        description = ''
-          Default DNS servers for VMs. Inherited per-VM via dns.servers, which
-          can override individually.
-        '';
-      };
-      restrict = mkOption {
-        type = types.bool;
-        default = false;
-        description = ''
-          Default for per-VM dns.restrict. If true, VMs may only resolve via
-          their dns.servers — DNS to any other destination is dropped at the firewall.
-        '';
-      };
+    serveDns = mkOption {
+      type = types.bool;
+      default = lib.any
+        (vm: lib.any (s: s == cfg.vmGateway || s == cfg.vmGateway6) vm.dns.servers)
+        (lib.attrValues (lib.filterAttrs (_: vm: vm.enable) cfg.vms));
+      defaultText = literalExpression
+        "true iff any enabled VM has a bridge IP in its dns.servers (the per-VM default)";
+      description = ''
+        Whether forest runs a DNS stub on the host bridge so VMs can resolve
+        through the host's systemd-resolved. When true, forest enables
+        services.resolved and adds DNSStubListenerExtra for both bridge IPs.
+
+        Auto-detects: defaults true if any enabled VM points its dns.servers at
+        a bridge IP (which is the per-VM default). Set false if you have your
+        own resolver bound to the bridge IPs, or if no VM uses the host stub.
+      '';
     };
   };
 

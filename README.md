@@ -120,9 +120,9 @@ This generates the matching firewall accept rules. Connection tracking handles r
 
 ### DNS
 
-By default each VM is configured with the host's declared `networking.nameservers` (or `1.1.1.1` / `1.0.0.1` if none are set), and DNS to any other destination is **not** blocked.
+By default each VM resolves through the **host's bridge IPs**. Forest auto-enables `services.resolved` on the host with `DNSStubListenerExtra` bound to those IPs, so VMs inherit whatever the host's resolver forwards to. Zero config required.
 
-To force a VM to only resolve via specific servers:
+To restrict a VM to only resolve via specific servers (firewall-enforced):
 
 ```nix
 forest.vms.foo.dns = {
@@ -131,7 +131,19 @@ forest.vms.foo.dns = {
 };
 ```
 
-Global defaults live under `forest.dns.{servers,restrict}` and are inherited by every VM unless overridden.
+To set a default for **every** VM (e.g. point them all at a DNS VM you run inside the forest), use `forest.common`:
+
+```nix
+# point every VM at a dedicated dns VM…
+forest.common.dns.servers = lib.mkDefault [ config.forest.vms.dns.ipv4 ];
+
+# …except the dns VM itself, which resolves upstream via the host
+forest.vms.dns.dns.servers = [ config.forest.vmGateway config.forest.vmGateway6 ];
+```
+
+`mkDefault` lives at priority 1000, so a per-VM override at normal priority (100) wins outright — no `mkForce` needed.
+
+If you run your **own resolver on the host** (dnsmasq, unbound, pihole, custom resolved config), set `forest.serveDns = false` to stop forest from touching `services.resolved`. Bind your daemon to the bridge IPs yourself; VMs at the default still hit them.
 
 ### Inbound port forwards
 
@@ -204,8 +216,8 @@ By default, the VMs use cppnix specific experimental feature to enable a writabl
 | `pciPassthrough`  | list of str  | `[]`                            | PCI device addresses to pass through (qemu only). |
 | `config`          | module       | _required_                      | NixOS module for the VM.                          |
 | `internetAccess`  | bool         | `true`                          | Allow public internet via host NAT.               |
-| `dns.servers`     | list of str  | `forest.dns.servers`            | DNS servers configured in the VM.                 |
-| `dns.restrict`    | bool         | `forest.dns.restrict`           | Drop DNS to anything outside `dns.servers`.       |
+| `dns.servers`     | list of str  | `[ vmGateway, vmGateway6 ]`     | DNS servers the VM resolves through.              |
+| `dns.restrict`    | bool         | `false`                         | Drop DNS to anything outside `dns.servers`.       |
 | `dependsOn`       | list         | `[]`                            | Allowed outbound connections to other VMs.        |
 | `forwardPorts`    | list         | `[]`                            | Inbound DNAT into the VM (tailscale, wg, NIC).    |
 | `ssh.users`       | attrs        | `{}`                            | Create users with SSH access (opens sshd).        |
@@ -225,8 +237,7 @@ The readonly fields `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` are
 | `vmGateway`         | str         | `"192.168.69.1"`                |
 | `vmGateway6`        | str         | `"fd69::1"`                     |
 | `bridgeInterface`   | str         | `"forest"`                      |
-| `dns.servers`       | list of str | host's `networking.nameservers` |
-| `dns.restrict`      | bool        | `false`                         |
+| `serveDns`          | bool        | _auto_ (see DNS section)        |
 
 ### `common`
 

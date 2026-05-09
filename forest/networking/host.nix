@@ -1,6 +1,6 @@
 # Host-side networking for forest: bridge, NAT, firewall, IP forwarding,
 # and the per-VM TAP-after-bridge ordering. Imported by the forest module.
-{ config, lib, pkgs, ... }:
+{ config, options, lib, pkgs, ... }:
 
 with lib;
 
@@ -46,6 +46,26 @@ in {
     networking.firewall = {
       trustedInterfaces = [ cfg.bridgeInterface ];
     };
+
+    # When forest serves DNS to VMs via the host bridge, run systemd-resolved
+    # and bind its stub to the bridge IPs so VMs can hit it. Users with their
+    # own resolver on the bridge can disable this with forest.serveDns = false.
+    #
+    # Feature-detects the resolved module shape: newer nixpkgs uses structured
+    # settings.Resolve; older nixpkgs uses the free-form extraConfig string.
+    # Version-checking is unreliable here because the channel branch can ship
+    # the new module before lib.version bumps to the next release.
+    # FIXME: drop the extraConfig branch once 26.05 is released and 25.11 EOL.
+    services.resolved = lib.mkIf cfg.serveDns ({
+      enable = true;
+    } // (if options.services.resolved ? settings then {
+      settings.Resolve.DNSStubListenerExtra = [ cfg.vmGateway cfg.vmGateway6 ];
+    } else {
+      extraConfig = ''
+        DNSStubListenerExtra=${cfg.vmGateway}
+        DNSStubListenerExtra=${cfg.vmGateway6}
+      '';
+    }));
 
     networking.nftables.tables = {
       "forest_filter" = {
