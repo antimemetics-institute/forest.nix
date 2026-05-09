@@ -1,15 +1,13 @@
 # forest.nix
 
-Easy declarative microvm-backed virtual machines for NixOS. A thin opinionated layer over [microvm.nix](https://github.com/microvm-nix/microvm.nix) that wires up networking, NAT, per-VM firewalling, writable nix store, SSH host keys, and a small CLI — so a VM definition fits in a handful of lines.
+Easy declarative microvm-backed virtual machines for NixOS. A thin opinionated layer over [microvm.nix](https://github.com/microvm-nix/microvm.nix) that wires up networking, NAT, per-VM firewalling, writable nix store, SSH host keys, sops secrets, and a small CLI — so a VM definition fits in a handful of lines.
 
 ```nix
 {
   forest.vms.dev = {
     cores = 4;
     memorySize = 4096;
-    ssh.users.dev.sshKeys = [ 
-      # your ssh key 
-    ];
+    ssh.users.dev.sshKeys = [ ... ];
     forwardPorts = [
       { port = 22; hostPort = 2222; protocol = "tcp"; interface = "tailscale0"; }
     ];
@@ -27,16 +25,17 @@ Easy declarative microvm-backed virtual machines for NixOS. A thin opinionated l
 }
 ```
 
-## What you get
-
-- **Containers-like interface on top of microvm-nix.** Declare a VM the way you'd declare a NixOS container — one attrset of options, one config module — but with hardware isolation and a hypervisor instead of a shared kernel.
-- **Networking generated from your declarations.** Bridge, NAT, IPv4/IPv6, default-deny inter-VM firewalling, DNS — all derived from `forest.vms.*`. Open specific ports between VMs with `dependsOn`, cut a VM off from the public internet with `internetAccess = false`, force DNS through a single resolver with `dns.restrict = true`. All configurable, sane defaults.
-- **Lightweight sops-nix integration.** Each VM gets a stable SSH host key that doubles as its age identity automatically — no manual `neededForBoot`, `sshKeyPaths`, or per-VM key plumbing for you to debug.
-- **Writable nix store inside the VM.** Forest wires up cppnix's `local-overlay-store` experimental feature so `/nix/store` is shared read-only from the host and only the VM's deltas live in its own image. Confuses gc (it can't see the lower layer's references) but doesn't break it. Toggle with `writableStore`.
-
 ## Status
 
-We early, APIs may shift.
+We early, APIs may shift. 
+
+Things we could add if people want them:
+- [ ] cloud-hypervisor graphics
+- [ ] MacOS support
+- [ ] support for `sudo` alternatives in the CLI
+- [ ] idk, let me know
+
+Open an issue if you want a feature.
 
 ## Setup
 
@@ -83,8 +82,6 @@ in {
 
 ### fetcher
 
-`forest.nix` ships a plain `default.nix` that pins `microvm.nix` and `sops-nix` via [npins](https://github.com/andir/npins) — no flake required at any layer:
-
 ```nix
 # /etc/nixos/configuration.nix
 { ... }: {
@@ -96,8 +93,6 @@ in {
   ];
 }
 ```
-
-To override forest's bundled pins (e.g. share an already-pinned `microvm.nix`):
 
 ## CLI
 
@@ -113,12 +108,59 @@ forest journal  <vm> [args...]    # the VM's own journal (extra args go to journ
 
 Tab-completion is installed for bash.
 
+## Per-VM options
+
+`forest.vms.<name>` is an attrset of VMs. Each VM exposes:
+
+| option            | type         | default                         | description                                                                 |
+|-------------------|--------------|---------------------------------|-----------------------------------------------------------------------------|
+| `enable`          | bool         | `true`                          | Whether this VM is part of the forest.                                      |
+| `index`           | int or null  | `null` (auto)                   | Stable slot (0–244) controlling IP/MAC/CID. See [Networking](#networking).  |
+| `hypervisor`      | str          | `"cloud-hypervisor"`            | Any microvm-supported hypervisor. `"qemu"` is required for [PCI passthrough](#gpu--pci-passthrough). |
+| `memorySize`      | int (MB)     | `2048`                          | Memory allocation.                                                          |
+| `cores`           | int          | `4`                             | vCPU count.                                                                 |
+| `stateVersion`    | str          | `"25.11"`                       | `system.stateVersion` for the VM.                                           |
+| `writableStore`   | bool         | `true`                          | Writable nix store overlay; wiped on each start. See [Persistent state](#persistent-state). |
+| `config`          | module       | _required_                      | NixOS module for the VM.                                                    |
+| `internetAccess`  | bool         | `true`                          | Allow public internet via host NAT.                                         |
+| `dependsOn`       | list         | `[]`                            | Allowed outbound connections to other VMs. See [Inter-VM dependencies](#inter-vm-dependencies). |
+| `forwardPorts`    | list         | `[]`                            | Inbound DNAT into the VM. See [Inbound port forwards](#inbound-port-forwards). |
+| `dns.servers`     | list of str  | `[ vmGateway, vmGateway6 ]`     | DNS servers the VM resolves through. See [DNS](#dns).                       |
+| `dns.restrict`    | bool         | `false`                         | Drop DNS to anything outside `dns.servers`.                                 |
+| `ssh.users`       | attrs        | `{}`                            | Create users with SSH access; opens sshd. See [SSH access](#ssh-access).    |
+| `sops`            | submodule    | disabled                        | Per-VM sops-nix integration. See [Secrets](#secrets-sops-nix).              |
+| `pciPassthrough`  | list of str  | `[]`                            | PCI device addresses (BDF) to pass through; qemu only. See [GPU / PCI passthrough](#gpu--pci-passthrough). |
+
+Readonly fields derived from the resolved index: `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid`. Refer to a VM's IP via `config.forest.vms.<name>.ipv4` / `.ipv6` instead of hard-coding it.
+
+## Top-level options
+
+`forest.<...>`:
+
+| option              | type        | default                         | description                                            |
+|---------------------|-------------|---------------------------------|--------------------------------------------------------|
+| `enable`            | bool        | `true`                          | Master switch.                                         |
+| `vms`               | attrs       | `{}`                            | VM definitions keyed by name. See [Per-VM options](#per-vm-options). |
+| `common`            | module      | `{}`                            | Defaults merged into every VM. See [`forest.common`](#forestcommon). |
+| `vmSubnet`          | str         | `"192.168.69.0/24"`             | IPv4 subnet for the bridge.                            |
+| `vmSubnet6`         | str         | `"fd69::/64"`                   | IPv6 subnet for the bridge.                            |
+| `vmGateway`         | str         | `"192.168.69.1"`                | Host IPv4 on the bridge (also the default DNS server). |
+| `vmGateway6`        | str         | `"fd69::1"`                     | Host IPv6 on the bridge.                               |
+| `bridgeInterface`   | str         | `"forest"`                      | Linux bridge name.                                     |
+| `serveDns`          | bool        | _auto_                          | Whether forest configures `services.resolved` with a stub on the bridge. See [DNS](#dns). |
+
 ## Networking
 
-- Every VM gets an IPv4 (`192.168.69.{10+index}`), IPv6 (`fd69::{10+index}`), MAC, and vsock CID derived from its `index`. Refer to a VM's IP via `forest.vms.{name}.ipv4` / `.ipv6` instead of hard-coding it.
-- `index` is auto-assigned by default — VMs are walked in name order and each gets the lowest free slot. **Once a VM holds persistent state (a database, an issued cert, a deployed service), pin its index explicitly** so its IP doesn't shift when you add or rename other VMs. Set `forest.vms.<name>.index = N` (range 0–244) to pin; auto-assignment skips pinned slots, so pins and unset values mix freely. Pins must be unique.
-- VMs sit on a bridge (`forest` by default). The host is the gateway at `192.168.69.1` / `fd69::1`.
-- The host's nftables policy is **default-deny for inter-VM traffic**: a VM cannot reach another VM unless it declares a `dependsOn` entry. Internet access is gated per-VM by `internetAccess` (default `true`).
+What every VM gets without configuration:
+
+- An IPv4 (`192.168.69.{10+index}`), IPv6 (`fd69::{10+index}`), MAC, and vsock CID derived from its `index`. Refer to other VMs via `config.forest.vms.<name>.ipv4` / `.ipv6` instead of hard-coding.
+- A name in the `.forest.local` domain (`web.forest.local`, `db.forest.local`). `/etc/hosts` is populated on host and guests.
+- A slot on the `forest` bridge with the host as gateway at `192.168.69.1` / `fd69::1`.
+- DNS that resolves through the host's bridge IPs (see [DNS](#dns)).
+- Default-deny inter-VM traffic — a VM cannot reach another unless it declares a [`dependsOn`](#inter-vm-dependencies) entry.
+- Internet access via host NAT, gated per-VM by `internetAccess` (default `true`).
+
+`index` is auto-assigned by walking VMs in name order and giving each the lowest free slot. **Once a VM holds persistent state (a database, an issued cert, a deployed service), pin its index explicitly** so its IP doesn't shift when you add or rename other VMs. Set `forest.vms.<name>.index = N` (range 0–244) to pin; auto-assignment skips pinned slots, so pins and unset values mix freely. Pins must be unique.
 
 ### Inter-VM dependencies
 
@@ -132,11 +174,11 @@ forest.vms.web = {
 };
 ```
 
-This generates the matching firewall accept rules. Connection tracking handles return traffic. Refer to the other VMs by their name in the `.forest.local` domain, e.g., `db.forest.local` or `cache.forest.local`.
+Generates the matching firewall accept rules; connection tracking handles return traffic. Reach the other VMs by name (`db.forest.local`).
 
 ### DNS
 
-By default each VM resolves through the **host's bridge IPs**. Forest auto-enables `services.resolved` on the host with `DNSStubListenerExtra` bound to those IPs, so VMs inherit whatever the host's resolver forwards to. Zero config required.
+Each VM resolves through the **host's bridge IPs**. Forest auto-enables `services.resolved` on the host with `DNSStubListenerExtra` bound to those IPs, so VMs inherit whatever the host's resolver forwards to. Zero config required.
 
 To restrict a VM to only resolve via specific servers (firewall-enforced):
 
@@ -147,7 +189,7 @@ forest.vms.foo.dns = {
 };
 ```
 
-To set a default for **every** VM (e.g. point them all at a DNS VM you run inside the forest), use `forest.common`:
+To set a default for **every** VM (e.g. point them all at a DNS VM you run inside the forest), use [`forest.common`](#forestcommon):
 
 ```nix
 # point every VM at a dedicated dns VM…
@@ -189,7 +231,17 @@ At least one of `interface` / `bindAddress` must be set explicitly — leaving b
 
 When `bindAddress` is unset and `interface` is, it defaults to `[ "0.0.0.0" "::" ]` (any address, both families). The interface filter does the scoping.
 
-For tailscale specifically: enable `services.tailscale.enable = true;` on the host the usual way and reference `interface = "tailscale0"`. Forest's nftables config doesn't conflict with tailscaled's own rules; see the [NixOS wiki page on Tailscale](https://wiki.nixos.org/wiki/Tailscale) for the host-level setup.
+For tailscale: enable `services.tailscale.enable = true;` on the host the usual way and reference `interface = "tailscale0"`. Forest's nftables config doesn't conflict with tailscaled's own rules; see the [NixOS wiki page on Tailscale](https://wiki.nixos.org/wiki/Tailscale) for host-level setup.
+
+## SSH access
+
+```nix
+forest.vms.web.ssh.users.alice = {
+  sshKeys = [ "ssh-ed25519 AAAA..." ];
+};
+```
+
+Creates the user, opens sshd to the bridge, and disables password auth. From the host you can reach the VM at `web.forest.local`.
 
 ## Secrets (sops-nix)
 
@@ -214,48 +266,23 @@ ssh-keyscan <vm-ip> | ssh-to-age   # add this age public key to .sops.yaml
 
 The public key on disk is at `/var/lib/microvms/<vm>/host-keys/ssh_host_ed25519_key.pub`.
 
-## Store overlay
+## Persistent state
 
-By default, the VMs use cppnix specific experimental feature to enable a writable store overlay, allowing you to run commands like `nix-shell` inside the VM.
+Each VM has three persistent virtiofs shares:
 
-## Per-VM options
+| guest path           | host path                              | purpose                                 |
+|----------------------|----------------------------------------|-----------------------------------------|
+| `/home`              | `/var/lib/microvms/<vm>/home`          | user homes                              |
+| `/var/log`           | `/var/lib/microvms/<vm>/logs`          | journals + logs                         |
+| `/var/lib/host-keys` | `/var/lib/microvms/<vm>/host-keys`     | SSH host keys (stable VM identity)      |
 
-| option            | type         | default                         | description                                       |
-|-------------------|--------------|---------------------------------|---------------------------------------------------|
-| `enable`          | bool         | `true`                          | Whether this VM is part of the forest.            |
-| `index`           | int or null  | `null` (auto-assigned)          | Pin to a stable slot (0–244). See [Networking](#networking). |
-| `hypervisor`      | str          | `"cloud-hypervisor"`            | Any microvm-supported hypervisor.                 |
-| `memorySize`      | int (MB)     | `2048`                          | Memory allocation.                                |
-| `cores`           | int          | `4`                             | Number of vCPUs.                                  |
-| `stateVersion`    | str          | `"25.11"`                       | `system.stateVersion` for the VM.                 |
-| `writableStore`   | bool         | `true`                          | Writable nix store overlay (wiped on each start). |
-| `pciPassthrough`  | list of str  | `[]`                            | PCI device addresses to pass through (qemu only). |
-| `config`          | module       | _required_                      | NixOS module for the VM.                          |
-| `internetAccess`  | bool         | `true`                          | Allow public internet via host NAT.               |
-| `dns.servers`     | list of str  | `[ vmGateway, vmGateway6 ]`     | DNS servers the VM resolves through.              |
-| `dns.restrict`    | bool         | `false`                         | Drop DNS to anything outside `dns.servers`.       |
-| `dependsOn`       | list         | `[]`                            | Allowed outbound connections to other VMs.        |
-| `forwardPorts`    | list         | `[]`                            | Inbound DNAT into the VM (tailscale, wg, NIC).    |
-| `ssh.users`       | attrs        | `{}`                            | Create users with SSH access (opens sshd).        |
-| `sops`            | submodule    | disabled                        | Per-VM sops-nix integration.                      |
+The host's `/nix/store` is shared read-only. By default each VM also gets a writable overlay on top of it (`writableStore = true`) so `nix-shell`, `nix build`, etc. work inside the guest — implemented as nix's `local-overlay-store` backend with the upper layer kept in `/var/lib/microvms/<vm>/nix-store-overlay.img`. The overlay image is wiped on every VM start so boots stay clean. Set `writableStore = false` to skip the overlay (read-only host store only).
 
-The readonly fields `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` are derived from the VM's resolved index (explicit if set, otherwise auto-assigned).
+> **Note on Lix.** The writable overlay needs the `local-overlay-store` experimental feature, which CppNix and Determinate Nix ship but Lix does not. If a VM sets `nix.package = pkgs.lix` and leaves `writableStore = true`, an assertion fails at eval time with instructions to either flip `writableStore = false` or pin a CppNix variant.
 
-## Top-level options
+`system.stateVersion` is pinned per VM via `stateVersion`.
 
-| option              | type        | default                         |
-|---------------------|-------------|---------------------------------|
-| `enable`            | bool        | `true`                          |
-| `vms`               | attrs       | `{}`                            |
-| `common`            | module      | `{}`                            |
-| `vmSubnet`          | str         | `"192.168.69.0/24"`             |
-| `vmSubnet6`         | str         | `"fd69::/64"`                   |
-| `vmGateway`         | str         | `"192.168.69.1"`                |
-| `vmGateway6`        | str         | `"fd69::1"`                     |
-| `bridgeInterface`   | str         | `"forest"`                      |
-| `serveDns`          | bool        | _auto_ (see DNS section)        |
-
-### `common`
+## `forest.common`
 
 A module merged into every VM, reusing the per-VM option schema. Any VM-level option (`config`, `ssh.users`, `memorySize`, `dns`, ...) can be set here as a shared default or addition.
 
@@ -276,34 +303,6 @@ Definitions follow normal module-system merge rules:
 - **attrsets** (e.g. `ssh.users`) merge per-key with per-VM definitions — every VM gets the common entries plus its own. The same key declared in both is a conflict; use `lib.mkForce` to override.
 - **the inner `config` module** merges as modules always do.
 - **scalars** (e.g. `memorySize`) at normal priority will conflict with a per-VM definition; wrap in `lib.mkDefault` to make them overridable.
-
-## SSH into a VM
-
-The simplest path is to declare users on the VM:
-
-```nix
-forest.vms.web.ssh.users.alice = {
-  sshKeys = [ "ssh-ed25519 AAAA..." ];
-};
-```
-
-This creates the user, opens sshd to the bridge, and disables password auth. From the host you can reach the VM at `web.forest.local` (entries are added to `/etc/hosts` for both host and guests).
-
-## Persistent state
-
-Each VM has three persistent virtiofs shares:
-
-| guest path           | host path                              | purpose                                 |
-|----------------------|----------------------------------------|-----------------------------------------|
-| `/home`              | `/var/lib/microvms/<vm>/home`          | user homes                              |
-| `/var/log`           | `/var/lib/microvms/<vm>/logs`          | journals + logs                         |
-| `/var/lib/host-keys` | `/var/lib/microvms/<vm>/host-keys`     | SSH host keys (stable VM identity)      |
-
-The host's `/nix/store` is shared read-only. By default each VM also gets a writable overlay on top of it (`writableStore = true`) so `nix-shell`, `nix build`, etc. work inside the guest — implemented as nix's `local-overlay-store` backend with the upper layer kept in `/var/lib/microvms/<vm>/nix-store-overlay.img`. The overlay image is wiped on every VM start so boots stay clean. Set `writableStore = false` to skip the overlay (read-only host store only).
-
-> **Note on Lix.** The writable overlay needs the `local-overlay-store` experimental feature, which CppNix and Determinate Nix ship but Lix does not. If a VM sets `nix.package = pkgs.lix` and leaves `writableStore = true`, an assertion fails at eval time with instructions to either flip `writableStore = false` or pin a CppNix variant.
-
-`system.stateVersion` is pinned per VM via `stateVersion`.
 
 ## GPU / PCI passthrough
 
@@ -364,19 +363,11 @@ You don't need to bind devices to `vfio-pci` manually — `microvm-pci-devices@<
 
 ## Tests
 
-Unit tests for the nftables rule generators:
-
 ```sh
 nix flake check
 # or:
 nix-instantiate --eval ./tests -A summary
 ```
-
-## Architecture notes
-
-- One nftables `inet` table (`forest_filter`) holds the input + forward chains. Two NAT tables (`forest_nat`, `forest_nat6`) handle masquerade. Rules are generated per-VM from `forest/utils/nftables.nix`.
-- `forest.common` is a `deferredModule` added to each VM's submodule evaluation, so its definitions merge with per-VM definitions under the standard module-system rules (list concat, scalar conflict, module merge).
-- The CLI lives in `forest/cli.nix` + `forest/forest.sh` + `forest/completion.bash`. The script is shellcheck-clean (enforced by `pkgs.writeShellApplication`).
 
 ## License
 
