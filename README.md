@@ -1,11 +1,30 @@
 # forest.nix
 
-Easy declarative microvm-backed virtual machines for NixOS. A thin opinionated layer over [microvm.nix](https://github.com/microvm-nix/microvm.nix) that wires up networking, NAT, per-VM firewalling, persistent state, SSH host keys, and a small CLI — so a VM definition fits in a handful of lines.
+Easy declarative microvm-backed virtual machines for NixOS. A thin opinionated layer over [microvm.nix](https://github.com/microvm-nix/microvm.nix) that wires up networking, NAT, per-VM firewalling, writable nix store, SSH host keys, and a small CLI — so a VM definition fits in a handful of lines.
 
 ```nix
-forest.vms.web.config = {
-  services.nginx.enable = true;
-};
+{
+  forest.vms.dev = {
+    cores = 4;
+    memorySize = 4096;
+    ssh.users.dev.sshKeys = [ 
+      # your ssh key 
+    ];
+    forwardPorts = [
+      { port = 22; hostPort = 2222; protocol = "tcp"; interface = "tailscale0"; }
+    ];
+    config = { pkgs, ... }: {
+
+      environment.systemPackages = [
+        pkgs.dig
+        pkgs.tmux
+        pkgs.git
+        pkgs.claude-code
+      ];
+
+    };
+  };
+}
 ```
 
 ## What you get
@@ -13,13 +32,13 @@ forest.vms.web.config = {
 - **Containers-like interface on top of microvm-nix.** Declare a VM the way you'd declare a NixOS container — one attrset of options, one config module — but with hardware isolation and a hypervisor instead of a shared kernel.
 - **Networking generated from your declarations.** Bridge, NAT, IPv4/IPv6, default-deny inter-VM firewalling, DNS — all derived from `forest.vms.*`. Open specific ports between VMs with `dependsOn`, cut a VM off from the public internet with `internetAccess = false`, force DNS through a single resolver with `dns.restrict = true`. All configurable, sane defaults.
 - **Lightweight sops-nix integration.** Each VM gets a stable SSH host key that doubles as its age identity automatically — no manual `neededForBoot`, `sshKeyPaths`, or per-VM key plumbing for you to debug.
-- **Writable nix store inside the VM, without the 20-minute rebuild tax.** Forest wires up cppnix's `local-overlay-store` experimental feature so `/nix/store` is shared read-only from the host and only the VM's deltas live in its own image. Confuses gc (it can't see the lower layer's references) but doesn't break it. Toggle with `writableStore`.
+- **Writable nix store inside the VM.** Forest wires up cppnix's `local-overlay-store` experimental feature so `/nix/store` is shared read-only from the host and only the VM's deltas live in its own image. Confuses gc (it can't see the lower layer's references) but doesn't break it. Toggle with `writableStore`.
 
 ## Status
 
 We early, APIs may shift.
 
-## Quick start
+## Setup
 
 ### Flake
 
@@ -38,14 +57,31 @@ We early, APIs may shift.
       system = "x86_64-linux";
       modules = [
         forest.nixosModules.default
-        ./host.nix
       ];
     };
   };
 }
 ```
 
-### Without flakes
+### npins
+
+```sh
+npins add github antimemetics-institute forest.nix
+```
+
+```nix
+# /etc/nixos/configuration.nix
+{ ... }:
+let
+  sources = import ./npins;
+in {
+  imports = [
+    (import sources."forest.nix" {})
+  ];
+}
+```
+
+### fetcher
 
 `forest.nix` ships a plain `default.nix` that pins `microvm.nix` and `sops-nix` via [npins](https://github.com/andir/npins) — no flake required at any layer:
 
@@ -57,33 +93,13 @@ We early, APIs may shift.
       url    = "https://github.com/antimemetics-institute/forest.nix/archive/<rev>.tar.gz";
       sha256 = "...";
     }) {})
-    ./host.nix
   ];
 }
 ```
 
 To override forest's bundled pins (e.g. share an already-pinned `microvm.nix`):
 
-```nix
-(import forest-source { microvmSrc = my-microvm-source; })
-```
-
-(Flake users override the same way they override any flake input — `inputs.forest.inputs.microvm.url = "...";` or `.follows = "...";`.)
-
-Then in `host.nix`:
-
-```nix
-{ ... }: {
-  forest.vms.web.config = {
-    services.nginx.enable = true;
-    networking.firewall.allowedTCPPorts = [ 80 ];
-  };
-}
-```
-
-Rebuild your host. forest creates the bridge, NAT rules, and starts `microvm@web`. The CLI is available as `forest`.
-
-## The forest CLI
+## CLI
 
 ```
 forest list                  # all forest VMs and their state
@@ -196,7 +212,7 @@ The VM's persistent SSH host key is used as the age identity for sops. To enroll
 ssh-keyscan <vm-ip> | ssh-to-age   # add this age public key to .sops.yaml
 ```
 
-Find the key in `/var/lib/microvms/{vm_name}/host_keys/SOMETHINGSOMETHING` TODO check what it is here
+The public key on disk is at `/var/lib/microvms/<vm>/host-keys/ssh_host_ed25519_key.pub`.
 
 ## Store overlay
 
