@@ -476,7 +476,7 @@ in
               }];
 
               binScripts.tap-up = lib.mkAfter ''
-                ${pkgs.iproute2}/bin/ip link set dev ${vm.tapInterface} master ${cfg.bridgeInterface}
+                ${lib.getExe' pkgs.iproute2 "ip"} link set dev ${vm.tapInterface} master ${cfg.bridgeInterface}
               '';
 
               shares = [

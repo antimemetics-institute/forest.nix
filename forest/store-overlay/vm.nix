@@ -31,7 +31,7 @@ let
   rwStore = "/nix/.rw-store";
   # Remount script needed after GC deletes upper paths that shadow lower paths
   remountScript = pkgs.writeShellScript "remount-nix-store" ''
-    ${pkgs.util-linux}/bin/mount -o remount /nix/store
+    ${lib.getExe' pkgs.util-linux "mount"} -o remount /nix/store
   '';
   # Lower store URI: a local store with physical paths pointing at the
   # read-only virtiofs mounts. URL-encoded because it's nested inside

@@ -110,7 +110,7 @@ in pkgs.runCommandLocal "forest-cli-tests" {
   echo "PASS: completion VM names baked in"
   TEST_EOF
 
-  ${pkgs.bashInteractive}/bin/bash completion-test.sh ${cli.completion}
+  ${lib.getExe' pkgs.bashInteractive "bash"} completion-test.sh ${cli.completion}
 
   echo "All forest CLI tests passed"
   touch "$out"
