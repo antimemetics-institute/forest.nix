@@ -192,7 +192,7 @@ The readonly fields `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` are
 |---------------------|-------------|---------------------------------|
 | `enable`            | bool        | `true`                          |
 | `vms`               | attrs       | `{}`                            |
-| `commonConfig`      | module      | `{}`                            |
+| `common`            | module      | `{}`                            |
 | `externalInterface` | str         | _required_                      |
 | `vmSubnet`          | str         | `"192.168.69.0/24"`             |
 | `vmSubnet6`         | str         | `"fd69::/64"`                   |
@@ -202,17 +202,29 @@ The readonly fields `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` are
 | `dns.servers`       | list of str | host's `networking.nameservers` |
 | `dns.constrain`     | bool        | `false`                         |
 
-### `commonConfig`
+### `common`
 
-A module merged into every VM. Use this for cross-cutting concerns:
+A module merged into every VM, reusing the per-VM option schema. Any VM-level option (`config`, `ssh.users`, `memory`, `dns`, ...) can be set here as a shared default or addition.
 
 ```nix
-forest.commonConfig = { pkgs, ... }: {
-  imports = [ ./vm-base.nix ];
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-  environment.systemPackages = [ pkgs.htop ];
+forest.common = {
+  ssh.users = [{ name = "ops"; sshKeys = [ "ssh-ed25519 AAAA..." ]; }];
+  memory = lib.mkDefault 4096;
+  config = { pkgs, ... }: {
+    imports = [ ./vm-base.nix ];
+    boot.kernelPackages = pkgs.linuxPackages_latest;
+    environment.systemPackages = [ pkgs.htop ];
+  };
 };
 ```
+
+Definitions follow normal module-system merge rules:
+
+- **lists** (e.g. `ssh.users`) concatenate with per-VM definitions — every VM gets the common entries plus its own.
+- **the inner `config` module** merges as modules always do.
+- **scalars** (e.g. `memory`) at normal priority will conflict with a per-VM definition; wrap in `lib.mkDefault` to make them overridable.
+
+A per-VM `lib.mkForce` on a list cleanly drops the common values for that VM.
 
 ## SSH into a VM
 
@@ -313,7 +325,7 @@ nix-instantiate --eval ./tests -A summary
 ## Architecture notes
 
 - One nftables `inet` table (`forest_filter`) holds the input + forward chains. Two NAT tables (`forest_nat`, `forest_nat6`) handle masquerade. Rules are generated per-VM from `forest/utils/nftables.nix`.
-- `forest.commonConfig` is implemented as a `deferredModule` and prepended to each VM's `imports` list, before the user's `vm.config`.
+- `forest.common` is a `deferredModule` added to each VM's submodule evaluation, so its definitions merge with per-VM definitions under the standard module-system rules (list concat, scalar conflict, module merge).
 - The CLI lives in `forest/cli.nix` + `forest/forest.sh` + `forest/completion.bash`. The script is shellcheck-clean (enforced by `pkgs.writeShellApplication`).
 
 ## License

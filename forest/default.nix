@@ -254,7 +254,10 @@ in
 
     vms = mkOption {
       type = types.attrsOf (types.submoduleWith {
-        modules = [ vmSubmodule ];
+        # `cfg.common` is added to every VM's evaluation, so any VM option set
+        # there flows into the per-VM merge under normal module-system rules:
+        # lists concatenate, modules merge, scalars conflict (use mkDefault).
+        modules = [ vmSubmodule cfg.common ];
         # Match what `types.submodule vm` does. Without this, the option named
         # `config` collides with the module-system reserved key and users
         # can't have both `config = {...}` and `index = N` on the same VM.
@@ -271,13 +274,31 @@ in
       description = "VMs to create with microvm.";
     };
 
-    commonConfig = mkOption {
+    common = mkOption {
       type = types.deferredModule;
       default = {};
       description = ''
-        NixOS module applied to every VM in this forest. Useful for cross-cutting
-        concerns like a shared kernel, packages, or sysctl. Supports
-        `imports = [ ./foo.nix ];` like any other module.
+        Module merged into every VM. Reuses the per-VM option schema, so any
+        VM-level option (config, ssh.users, memory, dns, ...) can be set here
+        as a shared default or addition.
+
+        Definitions follow normal module-system merge rules:
+          - lists (e.g. ssh.users) concatenate with per-VM definitions
+          - the inner `config` module merges as modules always do
+          - scalars (e.g. memory) conflict with per-VM definitions; wrap in
+            lib.mkDefault to make them overridable
+
+        A per-VM lib.mkForce on a list cleanly drops the common values for
+        that VM.
+
+        Example:
+          forest.common = {
+            ssh.users = [{ name = "ops"; sshKeys = [ "ssh-ed25519 ..." ]; }];
+            memory = lib.mkDefault 4096;
+            config = { pkgs, ... }: {
+              environment.systemPackages = [ pkgs.htop ];
+            };
+          };
       '';
     };
 
@@ -386,7 +407,6 @@ in
           config = {
             imports = [
               "${microvmSrc}/nixos-modules/microvm"
-              cfg.commonConfig
               vm.config
               (import ./networking/vm.nix { inherit name vm cfg lib enabledVms; })
             ] ++ lib.optional vm.writableStore ./store-overlay/vm.nix
