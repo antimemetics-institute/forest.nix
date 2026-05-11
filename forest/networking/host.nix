@@ -12,9 +12,9 @@ let
   restrictedVms = lib.filterAttrs (_: vm: vm.dns.restrict) enabledVms;
 in {
   config = mkIf cfg.enable {
-    networking.hosts = mkMerge (lib.mapAttrsToList (name: vm: {
-      "${vm.ipv4}" = [ "${name}.forest.local" ];
-      "${vm.ipv6}" = [ "${name}.forest.local" ];
+    networking.hosts = mkMerge (lib.mapAttrsToList (_: vm: {
+      "${vm.ipv4}" = [ vm.fqdn ];
+      "${vm.ipv6}" = [ vm.fqdn ];
     }) enabledVms);
 
     # Forest needs IP forwarding for NAT and inter-bridge routing. mkDefault

@@ -131,7 +131,7 @@ Tab-completion is installed for bash.
 | `sops`            | submodule    | disabled                        | Per-VM sops-nix integration. See [Secrets](#secrets-sops-nix).              |
 | `pciPassthrough`  | list of str  | `[]`                            | PCI device addresses (BDF) to pass through; qemu only. See [GPU / PCI passthrough](#gpu--pci-passthrough). |
 
-Readonly fields derived from the resolved index: `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid`. Refer to a VM's IP via `config.forest.vms.<name>.ipv4` / `.ipv6` instead of hard-coding it.
+Readonly fields: `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` (derived from the resolved index), and `fqdn` (= `<name>.forest.local`). Refer to a VM via `config.forest.vms.<name>.ipv4` / `.ipv6` / `.fqdn` instead of hard-coding.
 
 ## Top-level options
 
@@ -154,7 +154,7 @@ Readonly fields derived from the resolved index: `tapInterface`, `ipv4`, `ipv6`,
 What every VM gets without configuration:
 
 - An IPv4 (`192.168.69.{10+index}`), IPv6 (`fd69::{10+index}`), MAC, and vsock CID derived from its `index`. Refer to other VMs via `config.forest.vms.<name>.ipv4` / `.ipv6` instead of hard-coding.
-- A name in the `.forest.local` domain (`web.forest.local`, `db.forest.local`). `/etc/hosts` is populated on host and guests.
+- A name in the `.forest.local` domain (`web.forest.local`, `db.forest.local`), exposed as `config.forest.vms.<name>.fqdn`. `/etc/hosts` is populated on host and guests.
 - A slot on the `forest` bridge with the host as gateway at `192.168.69.1` / `fd69::1`.
 - DNS that resolves through the host's bridge IPs (see [DNS](#dns)).
 - Default-deny inter-VM traffic — a VM cannot reach another unless it declares a [`dependsOn`](#inter-vm-dependencies) entry.
@@ -174,7 +174,7 @@ forest.vms.web = {
 };
 ```
 
-Generates the matching firewall accept rules; connection tracking handles return traffic. Reach the other VMs by name (`db.forest.local`).
+Generates the matching firewall accept rules; connection tracking handles return traffic. Reach the other VMs by name — `db.forest.local`, or `config.forest.vms.db.fqdn` if you want to avoid hard-coding the domain.
 
 ### DNS
 

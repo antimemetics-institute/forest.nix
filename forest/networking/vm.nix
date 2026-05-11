@@ -9,9 +9,9 @@
   networking.useNetworkd = lib.mkForce true;
 
   networking.hosts = lib.mkMerge (
-    lib.map (dep: {
-      "${enabledVms.${dep.target}.ipv4}" = [ "${dep.target}.forest.local" ];
-      "${enabledVms.${dep.target}.ipv6}" = [ "${dep.target}.forest.local" ];
+    lib.map (dep: let target = enabledVms.${dep.target}; in {
+      "${target.ipv4}" = [ target.fqdn ];
+      "${target.ipv6}" = [ target.fqdn ];
     }) vm.dependsOn
   );
 

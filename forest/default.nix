@@ -79,6 +79,12 @@ let
         description = "IPv6 address derived from index.";
       };
 
+      fqdn = mkOption {
+        type = types.str;
+        readOnly = true;
+        description = "FQDN (<name>.forest.local) for use in dependent VM configs.";
+      };
+
       macAddress = mkOption {
         type = types.str;
         readOnly = true;
@@ -292,6 +298,7 @@ let
         tapInterface = "vm-${name}";
         ipv4 = "192.168.69.${toString (10 + idx)}";
         ipv6 = "fd69::${toString (10 + idx)}";
+        fqdn = "${name}.forest.local";
         macAddress = "02:00:00:42:00:${macPadded}";
         vsockCid = 420 + idx;
       };
