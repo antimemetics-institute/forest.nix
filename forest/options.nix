@@ -98,7 +98,7 @@ let
 
       memorySize = mkOption {
         type = types.int;
-        default = 2048;
+        default = 4096;
         description = "Memory allocation in MB.";
       };
 
