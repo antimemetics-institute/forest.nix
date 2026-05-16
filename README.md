@@ -244,6 +244,25 @@ forest.vms.web.ssh.users.alice = {
 
 Creates the user, opens sshd to the bridge, and disables password auth. From the host you can reach the VM at `web.forest.local`.
 
+### Reaching VMs from elsewhere
+
+VMs live on the internal bridge, so their IPs aren't routable from outside the host. ProxyJump through the host to reach them by name:
+
+```sh
+ssh -J user@hostmachine alice@web.forest.local
+```
+
+Or persistently in `~/.ssh/config`:
+
+```
+Host *.forest.local
+  ProxyJump user@hostmachine
+```
+
+The destination hostname is resolved on the jump host, which already has `/etc/hosts` populated for every VM. For wider reach (laptops on the tailnet, CI, etc.), set up the host's SSH access however you normally would — tailscale, public NIC, etc. — and ProxyJump through that.
+
+Use `forwardPorts` instead when you want a single VM exposed on a stable host port without requiring SSH access to the host itself.
+
 ## Secrets (sops-nix)
 
 ```nix
