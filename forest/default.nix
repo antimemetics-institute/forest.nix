@@ -16,6 +16,7 @@ in
   config = mkIf cfg.enable (
     let
       enabledVms = lib.filterAttrs (_: vm: vm.enable) cfg.vms;
+      autostartVms = lib.filterAttrs (_: vm: vm.enable and vm.autostart) cfg.vms;
       vmNames = lib.attrNames enabledVms;
       anyPciPassthrough = lib.any (vm: vm.pciPassthrough != []) (lib.attrValues enabledVms);
       forestCli = import ./cli { inherit lib pkgs vmNames; };
@@ -49,7 +50,7 @@ in
       };
 
       microvm = {
-        autostart = lib.attrNames enabledVms;
+        autostart = lib.attrNames autostartVms;
 
         vms = lib.mapAttrs (name: vm: {
           config = {
