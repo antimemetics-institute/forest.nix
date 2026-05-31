@@ -29,6 +29,12 @@ let
         description = "VM for running some services.";
       };
 
+      autostart = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Whether this VM should be started with the host.";
+      };
+
       index = mkOption {
         type = types.nullOr types.int;
         default = null;
