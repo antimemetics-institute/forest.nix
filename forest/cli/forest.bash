@@ -1,3 +1,4 @@
+#!@SHELL@
 # shellcheck shell=bash
 # forest CLI — manage microvm-backed forest VMs from one entry point.
 
@@ -14,15 +15,24 @@ Commands:
   up       <vm>              Start a VM
   down     <vm>              Stop a VM
   restart  <vm>              Restart a VM
-  logs     <vm> [args...]    Show journalctl for the systemd unit (extra args go to journalctl)
-  journal  <vm> [args...]    Open the VM's own journal (extra args go to journalctl)
+  logs     <vm> [args...]    Show journalctl for the systemd unit
+  journal  <vm> [args...]    Open the VM's own journal
   help                       Show this message
+
+Arguments:
+  <vm>         One of: @VM_NAMES@
+  [args...]    Extra args to journalctl
 EOF
 }
 
 require_vm() {
   if [ -z "$vm" ]; then
     printf "error: '%s' requires a VM name\n" "$cmd" >&2
+    usage >&2
+    exit 2
+  fi
+  if echo '@VM_NAMES@' | grep -v -w -q "$vm"; then
+    printf "error: '%s' is not a valid VM name. Valid options are: @VM_NAMES@\n" "$vm" >&2
     usage >&2
     exit 2
   fi
