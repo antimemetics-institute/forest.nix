@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # shellcheck shell=bash
 # forest CLI — manage microvm-backed forest VMs from one entry point.
 

@@ -1,17 +1,16 @@
 { lib, pkgs, vmNames }:
 
-let
-  forest = pkgs.writeShellApplication {
-    name = "forest";
-    text = builtins.readFile ./forest.sh;
-  };
+pkgs.runCommand "forest"
+  {
+    VM_NAMES = lib.concatStringsSep " " vmNames;
+  }
+  ''
+    mkdir -p $out/share/bash-completion/completions
+    mkdir -p $out/share/fish/vendor_completions.d
 
-  completion = pkgs.runCommand "forest-completion.bash" {
-    src = ./completion.bash;
-    vmNames = lib.concatStringsSep " " vmNames;
-  } ''
-    substitute "$src" "$out" --replace-fail '@VM_NAMES@' "$vmNames"
-  '';
-in {
-  inherit forest completion;
-}
+    install -Dm755 ${./forest.sh} $out/bin/forest
+    ${lib.getExe pkgs.shellcheck-minimal} $out/bin/forest
+
+    substitute ${./completion.bash} $out/share/bash-completion/completions/forest --subst-var VM_NAMES
+    substitute ${./completion.fish} $out/share/fish/vendor_completions.d/forest.fish --subst-var VM_NAMES
+  ''

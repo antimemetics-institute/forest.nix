@@ -36,9 +36,7 @@ in
         curl
         socat
         openssh
-      ]) ++ [ forestCli.forest ];
-
-      environment.etc."bash_completion.d/forest".source = forestCli.completion;
+      ]) ++ [ forestCli ];
 
       users.groups.microvm = {};
 
