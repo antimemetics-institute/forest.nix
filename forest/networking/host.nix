@@ -20,8 +20,8 @@ in {
     # Forest needs IP forwarding for NAT and inter-bridge routing. mkDefault
     # so a user with a specific reason to disable it can still override.
     boot.kernel.sysctl = {
-      "net.ipv4.ip_forward" = mkOverride 99 true;
-      "net.ipv6.conf.all.forwarding" = mkOverride 99 true;
+      "net.ipv4.ip_forward" = mkDefault true;
+      "net.ipv6.conf.all.forwarding" = mkDefault true;
     };
 
     networking.networkmanager.unmanaged =
