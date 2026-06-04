@@ -1,6 +1,6 @@
 # Host-side networking for forest: bridge, NAT, firewall, IP forwarding,
 # and the per-VM TAP-after-bridge ordering. Imported by the forest module.
-{ config, options, lib, pkgs, ... }:
+{ config, options, lib, ... }:
 
 with lib;
 
@@ -20,8 +20,8 @@ in {
     # Forest needs IP forwarding for NAT and inter-bridge routing. mkDefault
     # so a user with a specific reason to disable it can still override.
     boot.kernel.sysctl = {
-      "net.ipv4.ip_forward" = lib.mkDefault 1;
-      "net.ipv6.conf.all.forwarding" = lib.mkDefault 1;
+      "net.ipv4.ip_forward" = mkOverride 99 true;
+      "net.ipv6.conf.all.forwarding" = mkOverride 99 true;
     };
 
     networking.networkmanager.unmanaged =
@@ -156,18 +156,19 @@ ${forestUtils.generatePortForwardRules "ipv6" enabledVms}
     assertions = [
       {
         assertion = (config.boot.kernel.sysctl."net.ipv4.ip_forward" == 1 ||
-                     config.boot.kernel.sysctl."net.ipv4.ip_forward" == "1") &&
+                     config.boot.kernel.sysctl."net.ipv4.ip_forward" == "1" ||
+                     config.boot.kernel.sysctl."net.ipv4.ip_forward" == true ||
+                     config.boot.kernel.sysctl."net.ipv4.ip_forward" == "true") &&
                     (config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == 1 ||
-                     config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == "1");
+                     config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == "1" ||
+                     config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == true ||
+                     config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == "true");
         message = ''
-          The forest module requires IP forwarding to be enabled for NAT to work.
-          Forest sets these via lib.mkDefault, so something in your config has
-          overridden them back to off. Either drop that override or accept that
-          forest VMs won't reach the network:
+          Forest requires IP forwarding to be enabled for NAT to work:
 
           boot.kernel.sysctl = {
-            "net.ipv4.ip_forward" = 1;
-            "net.ipv6.conf.all.forwarding" = 1;
+            "net.ipv4.ip_forward" = true;
+            "net.ipv6.conf.all.forwarding" = true;
           };
         '';
       }
