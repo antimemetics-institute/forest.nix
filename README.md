@@ -239,10 +239,18 @@ For tailscale: enable `services.tailscale.enable = true;` on the host the usual 
 ```nix
 forest.vms.web.ssh.users.alice = {
   sshKeys = [ "ssh-ed25519 AAAA..." ];
+  shell = pkgs.zsh;            # optional; defaults to pkgs.bashInteractive
 };
 ```
 
 Creates the user, opens sshd to the bridge, and disables password auth. From the host you can reach the VM at `web.forest.local`.
+
+Per user:
+
+| field     | type                 | default               | description                                       |
+|-----------|----------------------|-----------------------|---------------------------------------------------|
+| `sshKeys` | list of str          | `[]`                  | Authorized SSH public keys for this user.         |
+| `shell`   | package              | `pkgs.bashInteractive`| Login shell. Pass any shell package (e.g. `pkgs.zsh`, `pkgs.fish`). Enable the matching program module in the VM's `config` if the shell needs it (e.g. `programs.zsh.enable = true;`). |
 
 ### Reaching VMs from elsewhere
 
