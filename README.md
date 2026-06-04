@@ -115,6 +115,7 @@ Tab-completion is installed for bash.
 | option            | type         | default                         | description                                                                 |
 |-------------------|--------------|---------------------------------|-----------------------------------------------------------------------------|
 | `enable`          | bool         | `true`                          | Whether this VM is part of the forest.                                      |
+| `autostart`       | bool         | `true`                          | Whether this VM should be started with the host.                            |
 | `index`           | int or null  | `null` (auto)                   | Stable slot (0–244) controlling IP/MAC/CID. See [Networking](#networking).  |
 | `hypervisor`      | str          | `"cloud-hypervisor"`            | Any microvm-supported hypervisor. `"qemu"` is required for [PCI passthrough](#gpu--pci-passthrough). |
 | `memorySize`      | int (MB)     | `2048`                          | Memory allocation.                                                          |

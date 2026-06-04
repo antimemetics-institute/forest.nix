@@ -49,9 +49,9 @@ in
       };
 
       microvm = {
-        autostart = lib.attrNames enabledVms;
-
         vms = lib.mapAttrs (name: vm: {
+          autostart = vm.autostart;
+
           config = {
             imports = [
               "${microvmSrc}/nixos-modules/microvm"
