@@ -21,18 +21,12 @@ let
     };
   };
 
-  vmSubmodule = { name, config, allResolvedIndices, ... }: {
+  vmSubmodule = { config, name, allResolvedIndices, ... }: {
     options = {
       enable = mkOption {
         type = types.bool;
         default = true;
         description = "VM for running some services.";
-      };
-
-      autostart = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Whether this VM should be started with the host.";
       };
 
       index = mkOption {
@@ -290,6 +284,71 @@ let
             { port = 22; protocol = "tcp"; interface = "tailscale0"; }
             { port = 80; hostPort = 8080; protocol = "tcp"; bindAddress = "203.0.113.5"; }
           ]
+        '';
+      };
+
+      nixpkgs = mkOption {
+        type = types.path;
+        default = if config.pkgs != null then config.pkgs.path else pkgs.path;
+        defaultText = literalExpression "pkgs.path";
+        description = ''
+          The nixpkgs path to use for the MicroVM. Defaults to the
+          host's nixpkgs.
+        '';
+      };
+
+      pkgs = mkOption {
+        type = types.nullOr types.unspecified;
+        default = pkgs;
+        defaultText = literalExpression "pkgs";
+        description = ''
+          The package set to use for the MicroVM. Must be a
+          nixpkgs package set with the microvm overlay. Determines
+          the system of the MicroVM.
+
+          If set to null, a new package set will be instantiated.
+        '';
+      };
+
+      specialArgs = mkOption {
+        type = types.attrsOf types.unspecified;
+        default = {};
+        description = ''
+          A set of special arguments to be passed to NixOS modules.
+          This will be merged into the `specialArgs` used to evaluate
+          the NixOS configurations.
+        '';
+      };
+
+      extraModules = mkOption {
+        type = types.listOf types.deferredModule;
+        default = [];
+        description = ''
+          A list of additional NixOS modules to be merged into
+          the MicroVM's system configuration.
+        '';
+        defaultText = literalExpression ''
+          [
+            flakeInputs.some-project.nixosModules.example
+            flakeInputs.another-project.nixosModules.default
+          ]
+        '';
+      };
+
+      autostart = mkOption {
+        description = "Add this MicroVM to config.microvm.autostart?";
+        type = types.bool;
+        default = true;
+      };
+
+      restartIfChanged = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Restart this MicroVM's services if the systemd units are changed,
+          i.e. if it has been updated by rebuilding the host.
+
+          Defaults to true for fully-declarative MicroVMs.
         '';
       };
     };
