@@ -164,10 +164,7 @@ ${forestUtils.generatePortForwardRules "ipv6" enabledVms}
                      config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == true ||
                      config.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == "true");
         message = ''
-          The forest module requires IP forwarding to be enabled for NAT to work.
-          Forest sets these via lib.mkDefault, so something in your config has
-          overridden them back to off. Either drop that override or accept that
-          forest VMs won't reach the network:
+          Forest requires IP forwarding to be enabled for NAT to work:
 
           boot.kernel.sysctl = {
             "net.ipv4.ip_forward" = true;
