@@ -1,17 +1,30 @@
-{ lib, pkgs, vmNames }:
+{
+  lib,
+  fishMinimal,
+  runCommand,
+  systemd,
+  shellcheck-minimal,
+  vmNames ? [ ],
+}:
 
-let
-  forest = pkgs.writeShellApplication {
-    name = "forest";
-    text = builtins.readFile ./forest.sh;
-  };
+runCommand "forest"
+  {
+    VM_NAMES = lib.concatStringsSep " " vmNames;
+    JOURNALCTL_COMPLETIONS = "${systemd}/share/bash-completion/completions/journalctl";
+  }
+  ''
+    mkdir -p $out/bin
+    substitute ${./forest.sh} $out/bin/forest --subst-var SHELL --subst-var VM_NAMES
+    chmod +x $out/bin/forest
 
-  completion = pkgs.runCommand "forest-completion.bash" {
-    src = ./completion.bash;
-    vmNames = lib.concatStringsSep " " vmNames;
-  } ''
-    substitute "$src" "$out" --replace-fail '@VM_NAMES@' "$vmNames"
-  '';
-in {
-  inherit forest completion;
-}
+    mkdir -p $out/share/bash-completion/completions
+    substitute ${./completion.bash} $out/share/bash-completion/completions/forest --subst-var VM_NAMES --subst-var JOURNALCTL_COMPLETIONS
+
+    mkdir -p $out/share/fish/vendor_completions.d
+    substitute ${./completion.fish} $out/share/fish/vendor_completions.d/forest.fish --subst-var VM_NAMES
+
+    # Check syntax for scripts
+    ${lib.getExe shellcheck-minimal} $out/bin/forest
+    ${lib.getExe shellcheck-minimal} $out/share/bash-completion/completions/forest
+    ${lib.getExe fishMinimal} -n $out/share/fish/vendor_completions.d/forest.fish
+  ''
