@@ -18,7 +18,7 @@ in
       enabledVms = lib.filterAttrs (_: vm: vm.enable) cfg.vms;
       vmNames = lib.attrNames enabledVms;
       anyPciPassthrough = lib.any (vm: vm.pciPassthrough != []) (lib.attrValues enabledVms);
-      forestCli = pkgs.callPackage ./cli { withVmNames = vmNames; };
+      forestCli = pkgs.callPackage ./cli { inherit vmNames; };
     in {
       # Load both KVM modules; the one whose hardware isn't present silently
       # no-ops (logged in dmesg, not fatal). Avoids forcing a CPU-vendor option.

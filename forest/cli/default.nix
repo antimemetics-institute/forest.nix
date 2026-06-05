@@ -1,23 +1,20 @@
 {
   lib,
-  bashInteractive,
   fishMinimal,
   runCommand,
   systemd,
   shellcheck-minimal,
-  withShell ? "${bashInteractive}/bin/bash --norc",
-  withVmNames ? [ ],
+  vmNames ? [ ],
 }:
 
 runCommand "forest"
   {
-    VM_NAMES = lib.concatStringsSep " " withVmNames;
-    SHELL = withShell;
+    VM_NAMES = lib.concatStringsSep " " vmNames;
     JOURNALCTL_COMPLETIONS = "${systemd}/share/bash-completion/completions/journalctl";
   }
   ''
     mkdir -p $out/bin
-    substitute ${./forest.bash} $out/bin/forest --subst-var SHELL --subst-var VM_NAMES
+    substitute ${./forest.sh} $out/bin/forest --subst-var SHELL --subst-var VM_NAMES
     chmod +x $out/bin/forest
 
     mkdir -p $out/share/bash-completion/completions

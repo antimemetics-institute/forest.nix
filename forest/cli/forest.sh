@@ -1,5 +1,5 @@
-#!@SHELL@
-# shellcheck shell=bash
+#!/bin/sh
+# shellcheck shell=sh
 # forest CLI — manage microvm-backed forest VMs from one entry point.
 
 cmd="${1:-help}"
