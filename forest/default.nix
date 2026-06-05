@@ -50,7 +50,14 @@ in
 
       microvm = {
         vms = lib.mapAttrs (name: vm: {
-          autostart = vm.autostart;
+          inherit (vm)
+            nixpkgs
+            pkgs
+            specialArgs
+            extraModules
+            autostart
+            restartIfChanged
+            ;
 
           config = {
             imports = [

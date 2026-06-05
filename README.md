@@ -27,7 +27,7 @@ Easy declarative microvm-backed virtual machines for NixOS. A thin opinionated l
 
 ## Status
 
-We early, APIs may shift. 
+We early, APIs may shift.
 
 Things we could add if people want them:
 - [ ] cloud-hypervisor graphics
@@ -112,25 +112,30 @@ Tab-completion is installed for bash.
 
 `forest.vms.<name>` is an attrset of VMs. Each VM exposes:
 
-| option            | type         | default                         | description                                                                 |
-|-------------------|--------------|---------------------------------|-----------------------------------------------------------------------------|
-| `enable`          | bool         | `true`                          | Whether this VM is part of the forest.                                      |
-| `autostart`       | bool         | `true`                          | Whether this VM should be started with the host.                            |
-| `index`           | int or null  | `null` (auto)                   | Stable slot (0–244) controlling IP/MAC/CID. See [Networking](#networking).  |
-| `hypervisor`      | str          | `"cloud-hypervisor"`            | Any microvm-supported hypervisor. `"qemu"` is required for [PCI passthrough](#gpu--pci-passthrough). |
-| `memorySize`      | int (MB)     | `2048`                          | Memory allocation.                                                          |
-| `cores`           | int          | `4`                             | vCPU count.                                                                 |
-| `stateVersion`    | str          | `"25.11"`                       | `system.stateVersion` for the VM.                                           |
-| `writableStore`   | bool         | `true`                          | Writable nix store overlay; wiped on each start. See [Persistent state](#persistent-state). |
-| `config`          | module       | _required_                      | NixOS module for the VM.                                                    |
-| `internetAccess`  | bool         | `true`                          | Allow public internet via host NAT.                                         |
-| `dependsOn`       | list         | `[]`                            | Allowed outbound connections to other VMs. See [Inter-VM dependencies](#inter-vm-dependencies). |
-| `forwardPorts`    | list         | `[]`                            | Inbound DNAT into the VM. See [Inbound port forwards](#inbound-port-forwards). |
-| `dns.servers`     | list of str  | `[ vmGateway, vmGateway6 ]`     | DNS servers the VM resolves through. See [DNS](#dns).                       |
-| `dns.restrict`    | bool         | `false`                         | Drop DNS to anything outside `dns.servers`.                                 |
-| `ssh.users`       | attrs        | `{}`                            | Create users with SSH access; opens sshd. See [SSH access](#ssh-access).    |
-| `sops`            | submodule    | disabled                        | Per-VM sops-nix integration. See [Secrets](#secrets-sops-nix).              |
-| `pciPassthrough`  | list of str  | `[]`                            | PCI device addresses (BDF) to pass through; qemu only. See [GPU / PCI passthrough](#gpu--pci-passthrough). |
+| option             | type              | default                     | description                                                                                                |
+|--------------------|-------------------|-----------------------------|------------------------------------------------------------------------------------------------------------|
+| `enable`           | bool              | `true`                      | Whether this VM is part of the forest.                                                                     |
+| `index`            | int or null       | `null` (auto)               | Stable slot (0–244) controlling IP/MAC/CID. See [Networking](#networking).                                 |
+| `hypervisor`       | str               | `"cloud-hypervisor"`        | Any microvm-supported hypervisor. `"qemu"` is required for [PCI passthrough](#gpu--pci-passthrough).       |
+| `memorySize`       | int (MB)          | `2048`                      | Memory allocation.                                                                                         |
+| `cores`            | int               | `4`                         | vCPU count.                                                                                                |
+| `stateVersion`     | str               | `"25.11"`                   | `system.stateVersion` for the VM.                                                                          |
+| `writableStore`    | bool              | `true`                      | Writable nix store overlay; wiped on each start. See [Persistent state](#persistent-state).                |
+| `config`           | module            | _required_                  | NixOS module for the VM.                                                                                   |
+| `internetAccess`   | bool              | `true`                      | Allow public internet via host NAT.                                                                        |
+| `dependsOn`        | list              | `[]`                        | Allowed outbound connections to other VMs. See [Inter-VM dependencies](#inter-vm-dependencies).            |
+| `forwardPorts`     | list              | `[]`                        | Inbound DNAT into the VM. See [Inbound port forwards](#inbound-port-forwards).                             |
+| `dns.servers`      | list of str       | `[ vmGateway, vmGateway6 ]` | DNS servers the VM resolves through. See [DNS](#dns).                                                      |
+| `dns.restrict`     | bool              | `false`                     | Drop DNS to anything outside `dns.servers`.                                                                |
+| `ssh.users`        | attrs             | `{}`                        | Create users with SSH access; opens sshd. See [SSH access](#ssh-access).                                   |
+| `sops`             | submodule         | disabled                    | Per-VM sops-nix integration. See [Secrets](#secrets-sops-nix).                                             |
+| `pciPassthrough`   | list of str       | `[]`                        | PCI device addresses (BDF) to pass through; qemu only. See [GPU / PCI passthrough](#gpu--pci-passthrough). |
+| `nixpkgs`          | path              | Host's `nixpkgs`            | The nixpkgs path to use for the MicroVM.                                                                   |
+| `pkgs`             | module            | Host's `pkgs`               | The package set to use for the MicroVM. Must be a nixpkgs package set with the microvm overlay.            |
+| `specialArgs`      | attrs             | `{}`                        | Extra attributes passed to the VM's configuration and NixOS modules.                                       |
+| `extraModules`     | list of submodule | `[]`                        | Additional NixOS modules to be merged into                                                                 |
+| `autostart`        | bool              | `true`                      | Whether this VM should be started with the host.                                                           |
+| `restartIfChanged` | bool              | `true`                      | Whether this VM should be restarted when its configuration is changed.                                     |
 
 Readonly fields: `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` (derived from the resolved index), and `fqdn` (= `<name>.forest.local`). Refer to a VM via `config.forest.vms.<name>.ipv4` / `.ipv6` / `.fqdn` instead of hard-coding.
 
