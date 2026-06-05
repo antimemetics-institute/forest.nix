@@ -23,6 +23,9 @@ let
 
   vmSubmodule = { config, name, allResolvedIndices, ... }: {
     options = {
+      # -------------------------------------------------------------------------------------
+      # forest VM options
+      # -------------------------------------------------------------------------------------
       enable = mkOption {
         type = types.bool;
         default = true;
@@ -287,6 +290,10 @@ let
         '';
       };
 
+      # -------------------------------------------------------------------------------------
+      # microvm.nix-specific options
+      # https://github.com/microvm-nix/microvm.nix/blob/main/nixos-modules/host/options.nix
+      # -------------------------------------------------------------------------------------
       nixpkgs = mkOption {
         type = types.path;
         default = if config.pkgs != null then config.pkgs.path else pkgs.path;
