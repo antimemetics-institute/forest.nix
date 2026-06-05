@@ -4,25 +4,29 @@
 
 cmd="${1:-help}"
 vm="${2:-}"
+vmNames="@VM_NAMES@"
+if [ -z "$vmNames" ]; then
+  vmArg="N/A"
+else
+  vmArg="One of: $vmNames"
+fi
 
 usage() {
-  cat <<'EOF'
-Usage: forest <command> [vm] [args...]
-
-Commands:
-  list                       List forest VMs and their state
-  status   <vm>              Show systemd status for a VM
-  up       <vm>              Start a VM
-  down     <vm>              Stop a VM
-  restart  <vm>              Restart a VM
-  logs     <vm> [args...]    Show journalctl for the systemd unit
-  journal  <vm> [args...]    Open the VM's own journal
-  help                       Show this message
-
-Arguments:
-  <vm>         One of: @VM_NAMES@
-  [args...]    Extra args to journalctl
-EOF
+  echo "Usage: forest <command> [vm] [args...]"
+  echo ""
+  echo "Commands:"
+  echo "  list                       List forest VMs and their state"
+  echo "  status   <vm>              Show systemd status for a VM"
+  echo "  up       <vm>              Start a VM"
+  echo "  down     <vm>              Stop a VM"
+  echo "  restart  <vm>              Restart a VM"
+  echo "  logs     <vm> [args...]    Show journalctl for the systemd unit"
+  echo "  journal  <vm> [args...]    Open the VM's own journal"
+  echo "  help                       Show this message"
+  echo ""
+  echo "Arguments:"
+  echo "  <vm>         $vmArg"
+  echo "  [args...]    Extra args to journalctl"
 }
 
 require_vm() {
@@ -31,8 +35,12 @@ require_vm() {
     usage >&2
     exit 2
   fi
-  if echo '@VM_NAMES@' | grep -v -w -q "$vm"; then
-    printf "error: '%s' is not a valid VM name. Valid options are: @VM_NAMES@\n" "$vm" >&2
+  if [ -z "$vmNames" ]; then
+    printf "error: '%s' requires at least one VM to be enabled.\n" "$cmd" >&2
+    usage >&2
+    exit 2
+  elif echo "$vmNames" | grep -v -w -q "$vm"; then
+    printf "error: '%s' is not a valid VM name. Valid options are: $vmNames\n" "$vm" >&2
     usage >&2
     exit 2
   fi
