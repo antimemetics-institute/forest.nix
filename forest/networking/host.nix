@@ -100,10 +100,14 @@ in {
             # VM-specific dependency rules
             ${forestUtils.generateAllVmConnectionRules enabledVms}
 
+            # Block other inter-VM forward traffic
+            ip saddr ${cfg.vmSubnet} ip daddr ${cfg.vmSubnet} drop comment "Block VM traffic from being forwarded IPv4"
+            ip6 saddr ${cfg.vmSubnet6} ip6 daddr ${cfg.vmSubnet6} drop comment "Block VM traffic from being forwarded IPv6"
+
             # Per-VM internet access (only VMs with internetAccess)
             ${forestUtils.generateInternetForwardRules internetVms}
 
-            # Block other VM subnet forward traffic
+            # Block all other VM subnet forward traffic
             ip saddr ${cfg.vmSubnet} drop comment "Block VM traffic from being forwarded IPv4"
             ip6 saddr ${cfg.vmSubnet6} drop comment "Block VM traffic from being forwarded IPv6"
           }
