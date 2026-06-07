@@ -3,8 +3,7 @@
 let
   lib = pkgs.lib;
 
-  cli = import ../forest/cli {
-    inherit lib pkgs;
+  cli = pkgs.callPackage ../forest/cli {
     vmNames = [ "web" "db" ];
   };
 
@@ -24,7 +23,7 @@ let
 
 in pkgs.runCommandLocal "forest-cli-tests" {
   nativeBuildInputs = [
-    cli.forest
+    cli
     fakeSudo
     fakeSystemctl
     fakeJournalctl
@@ -95,7 +94,7 @@ in pkgs.runCommandLocal "forest-cli-tests" {
   COMP_WORDS=(forest u "")
   COMP_CWORD=1
   COMPREPLY=()
-  _forest_complete
+  __forest_complete
   verbs=" ''${COMPREPLY[*]:-} "
   case "$verbs" in
     *" up "*) echo "PASS: completion verbs include 'up'" ;;
@@ -105,14 +104,14 @@ in pkgs.runCommandLocal "forest-cli-tests" {
   COMP_WORDS=(forest up "")
   COMP_CWORD=2
   COMPREPLY=()
-  _forest_complete
+  __forest_complete
   vms=" ''${COMPREPLY[*]:-} "
   case "$vms" in *" web "*) ;; *) echo "FAIL: completion VMs missing 'web' (got:$vms)" >&2; exit 1 ;; esac
   case "$vms" in *" db "*)  ;; *) echo "FAIL: completion VMs missing 'db' (got:$vms)"  >&2; exit 1 ;; esac
   echo "PASS: completion VM names baked in"
   TEST_EOF
 
-  ${lib.getExe' pkgs.bashInteractive "bash"} completion-test.sh ${cli.completion}
+  ${lib.getExe' pkgs.bashInteractive "bash"} completion-test.sh ${cli}/share/bash-completion/completions/forest
 
   echo "All forest CLI tests passed"
   touch "$out"
