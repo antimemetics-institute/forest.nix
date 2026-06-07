@@ -83,7 +83,7 @@ in {
             # Allow essential ICMPv6 for IPv6 to work (neighbor discovery, etc)
             ip6 saddr ${cfg.vmSubnet6} icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert, echo-request, echo-reply } accept comment "Essential ICMPv6"
 
-            # Block VM subnet from accessing other VMs or host services
+            # Block VM subnet from accessing host services
             ip saddr ${cfg.vmSubnet} drop comment "Block VMs from other host services IPv4"
             ip6 saddr ${cfg.vmSubnet6} drop comment "Block VMs from other host services IPv6"
           }
@@ -102,6 +102,10 @@ in {
 
             # Per-VM internet access (only VMs with internetAccess)
             ${forestUtils.generateInternetForwardRules internetVms}
+
+            # Block other VM subnet forward traffic
+            ip saddr ${cfg.vmSubnet} drop comment "Block VM traffic from being forwarded IPv4"
+            ip6 saddr ${cfg.vmSubnet6} drop comment "Block VM traffic from being forwarded IPv6"
           }
         '';
       };
