@@ -80,6 +80,5 @@ let
     };
   };
 in {
-  generateAllVmConnectionRules =
-    lib.mapAttrs (runners.runStringTest utils.generateAllVmConnectionRules) testCases;
+  tests = lib.mapAttrs (runners.runStringTest utils.generateAllVmConnectionRules) testCases;
 }

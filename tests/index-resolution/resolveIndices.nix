@@ -91,5 +91,5 @@ let
       passed = actual == test.expected;
     };
 in {
-  resolveIndices = lib.mapAttrs runResolve testCases;
+  tests = lib.mapAttrs runResolve testCases;
 }

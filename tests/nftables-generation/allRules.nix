@@ -90,5 +90,5 @@ let
     };
   };
 in {
-  generateAllRules = lib.mapAttrs (runners.runStringTest utils.generateAllRules) testCases;
+  tests = lib.mapAttrs (runners.runStringTest utils.generateAllRules) testCases;
 }

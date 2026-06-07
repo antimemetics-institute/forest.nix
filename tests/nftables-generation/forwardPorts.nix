@@ -141,9 +141,10 @@ let
         + "            iifname \"tailscale0\" udp dport 22 dnat to [fd69::10]:22";
     };
   };
+  prefix = p: lib.mapAttrs' (n: v: lib.nameValuePair "${p}/${n}" v);
+  run = ipVersion: lib.mapAttrs (runners.runStringTest (utils.generatePortForwardRules ipVersion));
 in {
-  generatePortForwardRulesV4 =
-    lib.mapAttrs (runners.runStringTest (utils.generatePortForwardRules "ipv4")) testCasesV4;
-  generatePortForwardRulesV6 =
-    lib.mapAttrs (runners.runStringTest (utils.generatePortForwardRules "ipv6")) testCasesV6;
+  tests =
+    prefix "generatePortForwardRulesV4" (run "ipv4" testCasesV4)
+    // prefix "generatePortForwardRulesV6" (run "ipv6" testCasesV6);
 }

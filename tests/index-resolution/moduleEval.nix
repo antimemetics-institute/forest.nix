@@ -82,5 +82,5 @@ let
       passed = actual == test.expected;
     };
 in {
-  forestModuleEval = lib.mapAttrs runEval testCases;
+  tests = lib.mapAttrs runEval testCases;
 }

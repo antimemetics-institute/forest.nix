@@ -1,0 +1,17 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  nix-flake-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # NixOS/nix-installer-action@main as of 2026-06-07
+      - uses: NixOS/nix-installer-action@6b8548fe06acfb0155a50ab5d561accb215764cc
+      - name: Build checks
+        # nix flake check swallows build logs even with -L; nix build streams them.
+        run: nix build -L --no-link .#checks.x86_64-linux.tests .#checks.x86_64-linux.cli

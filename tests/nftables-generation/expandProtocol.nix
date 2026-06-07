@@ -25,5 +25,5 @@ let
       passed = actual == test.expected;
     };
 in {
-  expandProtocol = lib.mapAttrs runExpandProtocol testCases;
+  tests = lib.mapAttrs runExpandProtocol testCases;
 }

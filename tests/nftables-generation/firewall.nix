@@ -159,15 +159,15 @@ let
     };
     empty = { input = {}; expected = ""; };
   };
+  # Each group runs the same case map against a different rule generator.
+  # Prefix case names with the group so they stay unique in the flat output.
+  prefix = p: lib.mapAttrs' (n: v: lib.nameValuePair "${p}/${n}" v);
+  run = fn: cases: lib.mapAttrs (runners.runStringTest fn) cases;
 in {
-  generateDnsInputRules =
-    lib.mapAttrs (runners.runStringTest utils.generateDnsInputRules) testCasesDnsInput;
-  generateDnsRestrictRules =
-    lib.mapAttrs (runners.runStringTest utils.generateDnsRestrictRules) testCasesDnsRestrict;
-  generateInternetForwardRules =
-    lib.mapAttrs (runners.runStringTest utils.generateInternetForwardRules) testCasesForward;
-  generateNat4Rules =
-    lib.mapAttrs (runners.runStringTest (utils.generateNat4Rules "forest")) testCasesNat4;
-  generateNat6Rules =
-    lib.mapAttrs (runners.runStringTest (utils.generateNat6Rules "forest")) testCasesNat6;
+  tests =
+    prefix "generateDnsInputRules"        (run utils.generateDnsInputRules        testCasesDnsInput)
+    // prefix "generateDnsRestrictRules"  (run utils.generateDnsRestrictRules     testCasesDnsRestrict)
+    // prefix "generateInternetForwardRules" (run utils.generateInternetForwardRules testCasesForward)
+    // prefix "generateNat4Rules"         (run (utils.generateNat4Rules "forest") testCasesNat4)
+    // prefix "generateNat6Rules"         (run (utils.generateNat6Rules "forest") testCasesNat6);
 }
