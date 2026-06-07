@@ -1,6 +1,6 @@
 # forest.nix
 
-Easy declarative microvm-backed virtual machines for NixOS. A thin opinionated layer over [microvm.nix](https://github.com/microvm-nix/microvm.nix) that wires up networking, NAT, per-VM firewalling, writable nix store, SSH host keys, sops secrets, and a small CLI — so a VM definition fits in a handful of lines.
+Simple nix virtual machines. A thin opinionated layer over [microvm.nix](https://github.com/microvm-nix/microvm.nix) that wires up networking, a writable nix store, sops secrets, and a small CLI.
 
 ```nix
 {
