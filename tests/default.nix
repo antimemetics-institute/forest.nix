@@ -5,7 +5,7 @@
 #   nix-instantiate --eval ./tests -A allPassed
 #
 # Build-time checks (consumed by flake.nix):
-#   .checks.tests  — derivation that fails iff any unit test fails
+#   .checks.tests  — derivation that fails if any unit test fails
 #   .checks.cli    — derivation that exercises forest/cli/forest.sh against stubs
 #
 # Adding a new test file:
