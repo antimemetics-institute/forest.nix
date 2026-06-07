@@ -24,6 +24,9 @@ in {
       "net.ipv6.conf.all.forwarding" = mkDefault true;
     };
 
+    # Forest's firewall rules are written as nftables rules.
+    networking.nftables.enable = mkDefault true;
+
     networking.networkmanager.unmanaged =
       [ "interface-name:${cfg.bridgeInterface}" ]
       ++ lib.mapAttrsToList (_: vm: "interface-name:${vm.tapInterface}") enabledVms;
@@ -178,6 +181,20 @@ ${forestUtils.generatePortForwardRules "ipv6" enabledVms}
             "net.ipv4.ip_forward" = true;
             "net.ipv6.conf.all.forwarding" = true;
           };
+        '';
+      }
+      {
+        assertion = config.networking.nftables.enable;
+        message = ''
+          Forest requires nftables to be enabled:
+
+          networking.nftables.enable = true;
+
+          Forest's firewall (inter-VM isolation, NAT for internetAccess,
+          inbound port forwards, DNS restrict) is implemented entirely as
+          nftables tables, which the nftables module only loads when this
+          option is true. Without it, VMs reach each other and the host
+          freely, NAT masquerade doesn't happen, and DNAT doesn't work.
         '';
       }
     ]
