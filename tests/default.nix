@@ -121,5 +121,7 @@ in rec {
       '';
 
     cli = import ./cli.nix { inherit pkgs; };
+
+    firewall = import ./firewall.nix { inherit pkgs; };
   };
 }
