@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  nix-flake-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # NixOS/nix-installer-action@main as of 2026-06-07
+      - uses: NixOS/nix-installer-action@6b8548fe06acfb0155a50ab5d561accb215764cc
+      - name: Cache /nix/store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          # Cache invalidates when flake.lock changes (nixpkgs/microvm/sops-nix bump).
+          # Falls back to the most recent cache otherwise so churn on .nix files
+          # doesn't force a cold rebuild.
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # Prevent old caches from accumulating past GHA's 10 GB repo limit.
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-
+          purge-created: 0
+          purge-last-accessed: 86400
+          purge-primary-key: never
+      - name: Build checks
+        # nix flake check swallows build logs even with -L; nix build streams them.
+        run: nix build -L --no-link .#checks.x86_64-linux.tests .#checks.x86_64-linux.cli
