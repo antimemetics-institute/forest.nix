@@ -39,7 +39,8 @@ Open an issue if you want a feature.
 
 ## Setup
 
-### Flake
+<details>
+<summary><b>Flake</b></summary>
 
 ```nix
 {
@@ -62,7 +63,10 @@ Open an issue if you want a feature.
 }
 ```
 
-### npins
+</details>
+
+<details>
+<summary><b>npins</b></summary>
 
 ```sh
 npins add github antimemetics-institute forest.nix
@@ -80,7 +84,10 @@ in {
 }
 ```
 
-### fetcher
+</details>
+
+<details>
+<summary><b>fetcher</b></summary>
 
 ```nix
 # /etc/nixos/configuration.nix
@@ -93,6 +100,8 @@ in {
   ];
 }
 ```
+
+</details>
 
 ## CLI
 
