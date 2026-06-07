@@ -78,5 +78,5 @@ let
       passed = runners.normalize actual == runners.normalize test.expected;
     };
 in {
-  generateConnectionRules = lib.mapAttrs runConnectionRules testCases;
+  tests = lib.mapAttrs runConnectionRules testCases;
 }

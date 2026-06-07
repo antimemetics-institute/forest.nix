@@ -39,5 +39,5 @@ let
       passed = lib.trim actual == lib.trim test.expected;
     };
 in {
-  generateAllowRule = lib.mapAttrs runAllowRule testCases;
+  tests = lib.mapAttrs runAllowRule testCases;
 }

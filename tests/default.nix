@@ -8,9 +8,15 @@
 #   .checks.tests  — derivation that fails iff any unit test fails
 #   .checks.cli    — derivation that exercises forest/cli/forest.sh against stubs
 #
-# Adding a new test section: drop a directory of .nix files next to this one.
-# Each .nix file receives `{ lib, utils, runners }` and returns an attrset of
-# named test results. Sections are auto-discovered.
+# Adding a new test file:
+#   Drop a `.nix` file inside any subdirectory next to this one. The file
+#   receives `{ lib, pkgs, utils, runners }` and must return:
+#     { tests = { caseName = result; ... }; }
+#   where each result has `passed`, `expected`, `actual`.
+#
+#   The file is responsible for flattening multiple groups into one shallow
+#   `tests` attrset (collisions inside a single file are the file's problem,
+#   but cross-file collisions are impossible — sections are keyed by file path).
 { pkgs ? import <nixpkgs> {} }:
 
 let
@@ -35,27 +41,39 @@ let
 
   args = { inherit lib pkgs utils runners; };
 
-  importTestsFrom = dir:
+  loadTestFile = path:
     let
-      entries = builtins.readDir dir;
-      nixFiles = lib.filter
-        (name: entries.${name} == "regular" && lib.hasSuffix ".nix" name)
-        (lib.attrNames entries);
-    in
-      lib.foldl' (acc: name: acc // (import (dir + "/${name}") args)) {} nixFiles;
+      imported = import path args;
+      hasTests = imported ? tests;
+    in if hasTests
+       then imported.tests
+       else throw "test file ${toString path} must return { tests = { ... }; } (got attrs: ${lib.concatStringsSep ", " (lib.attrNames imported)})";
 
-  # Auto-discover test directories next to this file. Subdirectories are
-  # purely organizational — each .nix file inside returns `{ section = tests; }`
-  # and those are flattened into one map of section -> tests.
   sectionDirs =
     let entries = builtins.readDir ./.;
     in lib.filter (name: entries.${name} == "directory") (lib.attrNames entries);
 
-  sections = lib.foldl' (acc: dir:
-    acc // (importTestsFrom (./. + "/${dir}"))
-  ) {} sectionDirs;
+  # sections : { "<dir>/<file>" = <flat-tests-attrset>; }
+  # The path key is filesystem-unique so cross-file collisions are impossible.
+  sections = lib.listToAttrs (lib.concatMap (dir:
+    let
+      dirPath = ./. + "/${dir}";
+      entries = builtins.readDir dirPath;
+      nixFiles = lib.filter
+        (name: entries.${name} == "regular" && lib.hasSuffix ".nix" name)
+        (lib.attrNames entries);
+      stripExt = name: lib.removeSuffix ".nix" name;
+    in lib.map (file: {
+      name = "${dir}/${stripExt file}";
+      value = loadTestFile (dirPath + "/${file}");
+    }) nixFiles
+  ) sectionDirs);
 
-  allResults = lib.foldl' (acc: s: acc // s) {} (builtins.attrValues sections);
+  allResults = lib.foldlAttrs (acc: sectionPath: results:
+    acc // (lib.mapAttrs' (caseName: r:
+      lib.nameValuePair "${sectionPath}/${caseName}" r
+    ) results)
+  ) {} sections;
 
   formatSection = results:
     lib.concatStringsSep "\n" (lib.mapAttrsToList (name: r:
@@ -71,16 +89,16 @@ let
       ''
     ) results));
 
-  formatAllSections = lib.concatStringsSep "\n\n" (lib.mapAttrsToList (sectionName: results:
-    "${sectionName}:\n${formatSection results}"
+  formatAllSections = lib.concatStringsSep "\n\n" (lib.mapAttrsToList (sectionPath: results:
+    "${sectionPath}:\n${formatSection results}"
   ) sections);
 
 in rec {
   allPassed = builtins.all (r: r.passed) (builtins.attrValues allResults);
 
   summary = ''
-    Forest Utils Test Results
-    =========================
+    Forest Tests
+    ============
 
     ${formatAllSections}
 

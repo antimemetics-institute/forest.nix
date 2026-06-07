@@ -57,5 +57,5 @@ let
         else "OK";
     };
 in {
-  hostEval = lib.mapAttrs runCase testCases;
+  tests = lib.mapAttrs runCase testCases;
 }

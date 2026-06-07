@@ -85,5 +85,5 @@ let
     passed = hasForwardPortFailure test.input == test.expected;
   };
 in {
-  forwardPortsAssertions = lib.mapAttrs runCase testCases;
+  tests = lib.mapAttrs runCase testCases;
 }
