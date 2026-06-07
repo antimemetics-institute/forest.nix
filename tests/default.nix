@@ -111,7 +111,10 @@ in rec {
   checks = {
     tests =
       if allPassed
-      then pkgs.runCommand "forest-tests" {} "echo all tests passed; touch $out"
+      then pkgs.runCommand "forest-tests" { passing = summary; } ''
+        printf '%s\n' "$passing"
+        touch $out
+      ''
       else pkgs.runCommand "forest-tests-failed" { failure = summary; } ''
         printf '%s\n' "$failure"
         exit 1
