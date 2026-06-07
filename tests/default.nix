@@ -5,7 +5,7 @@
 #   nix-instantiate --eval ./tests -A allPassed
 #
 # Build-time checks (consumed by flake.nix):
-#   .checks.utils  — derivation that fails iff any unit test fails
+#   .checks.tests  — derivation that fails iff any unit test fails
 #   .checks.cli    — derivation that exercises forest/cli/forest.sh against stubs
 #
 # Adding a new test section: drop a directory of .nix files next to this one.
@@ -91,10 +91,10 @@ in rec {
   inherit allResults;
 
   checks = {
-    utils =
+    tests =
       if allPassed
-      then pkgs.runCommand "forest-utils-tests" {} "echo all tests passed; touch $out"
-      else pkgs.runCommand "forest-utils-tests-failed" { failure = summary; } ''
+      then pkgs.runCommand "forest-tests" {} "echo all tests passed; touch $out"
+      else pkgs.runCommand "forest-tests-failed" { failure = summary; } ''
         printf '%s\n' "$failure"
         exit 1
       '';
