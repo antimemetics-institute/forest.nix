@@ -167,7 +167,7 @@ Tab-completion is installed for bash.
 | `specialArgs`      | attrs             | `{}`                        | Extra attributes passed to the VM's configuration and NixOS modules.                                       |
 | `extraModules`     | list of submodule | `[]`                        | Additional NixOS modules to be merged into                                                                 |
 | `autostart`        | bool              | `true`                      | Whether this VM should be started with the host.                                                           |
-| `restartIfChanged` | bool              | `true`                      | Whether this VM should be restarted when its configuration is changed.                                     |
+| `updatePolicy`     | enum              | `"switch"`                  | How a host rebuild applies config changes: `"switch"` (hot-reload userspace over SSH, restart only on hardware change), `"restart"` (always restart), `"manual"` (install only; restart yourself). |
 
 Readonly fields: `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` (derived from the resolved index), and `fqdn` (= `<name>.forest.local`). Refer to a VM via `config.forest.vms.<name>.ipv4` / `.ipv6` / `.fqdn` instead of hard-coding.
 
