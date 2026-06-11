@@ -20,7 +20,7 @@ in {
   services.openssh = {
     openFirewall = true;
     settings = {
-      PermitRootLogin = "no";
+      PermitRootLogin = lib.mkDefault "no";
       PasswordAuthentication = false;
       AllowUsers = names;
     };
