@@ -80,16 +80,6 @@ in
               vsock.cid = vm.vsockCid;
               devices = lib.map (path: { bus = "pci"; inherit path; }) vm.pciPassthrough;
 
-              interfaces = [{
-                type = "tap";
-                id = vm.tapInterface;
-                mac = vm.macAddress;
-              }];
-
-              binScripts.tap-up = lib.mkAfter ''
-                ${lib.getExe' pkgs.iproute2 "ip"} link set dev ${vm.tapInterface} master ${cfg.bridgeInterface}
-              '';
-
               shares = [
                 {
                   proto = "virtiofs";

@@ -1,5 +1,6 @@
-# Host-side networking for forest: bridge, NAT, firewall, IP forwarding,
-# and the per-VM TAP-after-bridge ordering. Imported by the forest module.
+# Host-side networking for forest: bridge and tap enslavement (via
+# systemd-networkd), NAT, firewall, IP forwarding. Imported by the forest
+# module.
 { config, options, lib, ... }:
 
 with lib;
@@ -31,19 +32,38 @@ in {
       [ "interface-name:${cfg.bridgeInterface}" ]
       ++ lib.mapAttrsToList (_: vm: "interface-name:${vm.tapInterface}") enabledVms;
 
-    networking.bridges.${cfg.bridgeInterface} = {
-      interfaces = [ ];
+    # The bridge and tap enslavement are declarative networkd state, not
+    # scripted-networking oneshots. networkd reconciles continuously: a tap
+    # is (re-)enslaved whenever the tap or the bridge (re)appears, so bridge
+    # recreation on a rebuild can't strand running VMs' taps. The scripted
+    # backend's <bridge>-netdev.service deletes and recreates the bridge on
+    # every start, detaching all runtime-enslaved ports with no reconciler.
+    systemd.network.enable = true;
+
+    systemd.network.netdevs."10-forest-bridge" = {
+      netdevConfig = {
+        Kind = "bridge";
+        Name = cfg.bridgeInterface;
+      };
     };
 
-    networking.interfaces.${cfg.bridgeInterface} = {
-      ipv4.addresses = [{
-        address = cfg.vmGateway;
-        prefixLength = 24;
-      }];
-      ipv6.addresses = [{
-        address = cfg.vmGateway6;
-        prefixLength = 64;
-      }];
+    systemd.network.networks."10-forest-bridge" = {
+      matchConfig.Name = cfg.bridgeInterface;
+      address = [
+        "${cfg.vmGateway}/24"
+        "${cfg.vmGateway6}/64"
+      ];
+      # With all VMs stopped the bridge has no ports and thus no carrier;
+      # configure its addresses anyway, and never block network-online on it.
+      networkConfig.ConfigureWithoutCarrier = true;
+      linkConfig.RequiredForOnline = "no";
+    };
+
+    systemd.network.networks."11-forest-taps" = lib.mkIf (enabledVms != { }) {
+      matchConfig.Name =
+        lib.concatStringsSep " " (lib.mapAttrsToList (_: vm: vm.tapInterface) enabledVms);
+      networkConfig.Bridge = cfg.bridgeInterface;
+      linkConfig.RequiredForOnline = "no";
     };
 
     networking.firewall = {
@@ -145,24 +165,6 @@ ${forestUtils.generatePortForwardRules "ipv6" enabledVms}
         '';
       };
     };
-
-    # Ensure TAP interfaces wait for the bridge — fixes a race at boot.
-    systemd.services = {
-      # Bring the addresses unit up alongside the bridge after a rebuild restart;
-      # WantedBy=network.target only fires at boot, so it would otherwise stay dead.
-      "${cfg.bridgeInterface}-netdev".wants =
-        [ "network-addresses-${cfg.bridgeInterface}.service" ];
-    } // lib.mapAttrs' (name: _vm:
-      lib.nameValuePair "microvm-tap-interfaces@${name}" {
-        after = [
-          "sys-subsystem-net-devices-${cfg.bridgeInterface}.device"
-          "network-addresses-${cfg.bridgeInterface}.service"
-        ];
-        requires = [
-          "sys-subsystem-net-devices-${cfg.bridgeInterface}.device"
-        ];
-      }
-    ) enabledVms;
 
     assertions = [
       {

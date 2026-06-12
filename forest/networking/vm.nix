@@ -1,8 +1,16 @@
-# Per-VM networking: hostname, addresses, gateway, DNS, and dependsOn
-# /etc/hosts entries. Imported per-VM by the forest module.
+# Per-VM networking: tap interface, hostname, addresses, gateway, DNS, and
+# dependsOn /etc/hosts entries. Imported per-VM by the forest module.
 { name, vm, cfg, lib, enabledVms }:
 { options, ... }:
 {
+  # The host side enslaves this tap into the forest bridge via networkd
+  # (see networking/host.nix); no up/down hooks are involved.
+  microvm.interfaces = [{
+    type = "tap";
+    id = vm.tapInterface;
+    mac = vm.macAddress;
+  }];
+
   networking.hostName = lib.mkForce name;
   networking.domain = lib.mkForce "forest.local";
   networking.useDHCP = lib.mkForce false;
