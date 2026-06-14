@@ -290,6 +290,21 @@ let
         '';
       };
 
+      vsockSsh = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Expose this VM's sshd on vsock for host-side management — both
+          `forest ssh <vm>` and the in-place hot-switch (updatePolicy = "switch")
+          ride this channel. No network port is opened; vsock is reachable only
+          from the host, which authenticates with a forest-managed key, so
+          operators need no credentials of their own.
+
+          Flip the fleet default via `forest.common.vsockSsh = lib.mkDefault
+          false`, or set it per-VM. Required when updatePolicy = "switch".
+        '';
+      };
+
       # -------------------------------------------------------------------------------------
       # microvm.nix-specific options
       # https://github.com/microvm-nix/microvm.nix/blob/main/nixos-modules/host/options.nix
