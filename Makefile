@@ -2,7 +2,7 @@
 
 update-deps:
 	nix flake update
-	npins update
+	tack update
 
 check:
 	nix flake check

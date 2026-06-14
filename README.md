@@ -87,6 +87,27 @@ in {
 </details>
 
 <details>
+<summary><b>tack</b></summary>
+
+```sh
+tack add forest.nix github:antimemetics-institute/forest.nix --fetch
+```
+
+```nix
+# /etc/nixos/configuration.nix
+{ ... }:
+let
+  inputs = import ./tack;
+in {
+  imports = [
+    (import inputs."forest.nix" {})
+  ];
+}
+```
+
+</details>
+
+<details>
 <summary><b>fetcher</b></summary>
 
 ```nix
