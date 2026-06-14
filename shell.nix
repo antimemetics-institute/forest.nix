@@ -1,8 +1,13 @@
-{ pkgs ? import <nixpkgs> {} }:
+{
+  system ? builtins.currentSystem,
+  inputs ? import ./.tack,
+  pkgs ? inputs.nixpkgs.legacyPackages.${system},
+  tackPkgs ? inputs.tack.packages.${system},
+}:
 
 pkgs.mkShell {
   packages = [
-    pkgs.npins
     pkgs.gnumake
+    tackPkgs.tack
   ];
 }

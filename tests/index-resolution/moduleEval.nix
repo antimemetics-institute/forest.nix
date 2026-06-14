@@ -8,13 +8,13 @@
 # tests for `resolveIndices` can't see.
 
 let
-  sources = import ../../npins;
+  inputs = import ../../.tack;
 
   evalForest = vms: (lib.evalModules {
     modules = [
       (import ../../forest {
-        microvmSrc = sources."microvm.nix";
-        sopsNixSrc = sources."sops-nix";
+        microvmSrc = inputs."microvm.nix";
+        sopsNixSrc = inputs."sops-nix";
       })
       ({ ... }: {
         _module.check = false;

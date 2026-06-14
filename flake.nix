@@ -32,8 +32,10 @@
       checks = forAllSystems ({ pkgs, ... }:
         (import ./tests { inherit pkgs; }).checks);
 
-      devShells = forAllSystems ({ pkgs, ... }: {
-        default = import ./shell.nix { inherit pkgs; };
-      });
+      devShells = forAllSystems ({ pkgs, system, ... }:
+        {
+          default = import ./shell.nix { inherit pkgs system; };
+        }
+      );
     };
 }

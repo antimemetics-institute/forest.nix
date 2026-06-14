@@ -13,10 +13,10 @@
 # we ignore those and only inspect ones that mention `forwardPorts`.
 
 let
-  sources = import ../../npins;
+  inputs = import ../../.tack;
   forestModule = import ../../forest {
-    microvmSrc = sources."microvm.nix";
-    sopsNixSrc = sources."sops-nix";
+    microvmSrc = inputs."microvm.nix";
+    sopsNixSrc = inputs."sops-nix";
   };
 
   evalAssertions = vms: (lib.evalModules {

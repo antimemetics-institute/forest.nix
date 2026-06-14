@@ -17,7 +17,11 @@
 #   The file is responsible for flattening multiple groups into one shallow
 #   `tests` attrset (collisions inside a single file are the file's problem,
 #   but cross-file collisions are impossible — sections are keyed by file path).
-{ pkgs ? import <nixpkgs> {} }:
+{
+  system ? builtins.currentSystem,
+  inputs ? import ../.tack,
+  pkgs ? inputs.nixpkgs.legacyPackages.${system},
+}:
 
 let
   lib = pkgs.lib;
