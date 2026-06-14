@@ -20,6 +20,7 @@ usage() {
   echo "  up       <vm>              Start a VM"
   echo "  down     <vm>              Stop a VM"
   echo "  restart  <vm>              Restart a VM"
+  echo "  ssh      <vm> [args...]    Open an SSH shell in the VM over vsock"
   echo "  logs     <vm> [args...]    Show journalctl for the systemd unit"
   echo "  journal  <vm> [args...]    Open the VM's own journal"
   echo "  help                       Show this message"
@@ -65,6 +66,13 @@ case "$cmd" in
   restart)
     require_vm
     sudo systemctl restart "microvm@$vm"
+    ;;
+  ssh)
+    require_vm
+    shift 2
+    # microvm -s selects the vsock target and authenticates with the forest
+    # management key (root-only) via the system ssh client config; run as root.
+    sudo microvm -s "$vm" "$@"
     ;;
   logs)
     require_vm

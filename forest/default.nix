@@ -10,6 +10,7 @@ in
   imports = [
     ./options.nix
     ./networking/host.nix
+    ./vsock-ssh/host.nix
     "${microvmSrc}/nixos-modules/host"
   ];
 
@@ -63,6 +64,7 @@ in
               vm.config
               (import ./networking/vm.nix { inherit name vm cfg lib enabledVms; })
             ] ++ lib.optional vm.writableStore ./store-overlay/vm.nix
+            ++ lib.optional vm.vsockSsh (import ./vsock-ssh/vm.nix)
             ++ lib.optional vm.sops.enable (import ./secrets.nix {
               inherit sopsNixSrc;
               defaultSopsFile = vm.sops.defaultSopsFile;
