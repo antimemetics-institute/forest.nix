@@ -8,11 +8,14 @@
 #   .checks.tests  — derivation that fails if any unit test fails
 #   .checks.cli    — derivation that exercises forest/cli/forest.sh against stubs
 #
-# Adding a new test file:
-#   Drop a `.nix` file inside any subdirectory next to this one. The file
-#   receives `{ lib, pkgs, utils, runners }` and must return:
-#     { tests = { caseName = result; ... }; }
-#   where each result has `passed`, `expected`, `actual`.
+# Adding a test file:
+#   Drop a `.nix` file inside any subdirectory next to this one. It receives
+#   `{ lib, pkgs, utils, runners }` and returns EITHER:
+#     - a pure-eval unit-test file: { tests = { caseName = result; ... }; }
+#       where each result has `passed`, `expected`, `actual`; or
+#     - a build-time check: a derivation (realized via `.checks.<dir>-<file>`,
+#       like the top-level cli/firewall checks). Importing it is still pure eval;
+#       only `nix build`/`nix flake check` realizes it.
 #
 #   The file is responsible for flattening multiple groups into one shallow
 #   `tests` attrset (collisions inside a single file are the file's problem,
@@ -45,21 +48,14 @@ let
 
   args = { inherit lib pkgs utils runners; };
 
-  loadTestFile = path:
-    let
-      imported = import path args;
-      hasTests = imported ? tests;
-    in if hasTests
-       then imported.tests
-       else throw "test file ${toString path} must return { tests = { ... }; } (got attrs: ${lib.concatStringsSep ", " (lib.attrNames imported)})";
-
   sectionDirs =
     let entries = builtins.readDir ./.;
     in lib.filter (name: entries.${name} == "directory") (lib.attrNames entries);
 
-  # sections : { "<dir>/<file>" = <flat-tests-attrset>; }
-  # The path key is filesystem-unique so cross-file collisions are impossible.
-  sections = lib.listToAttrs (lib.concatMap (dir:
+  # Import every subdir .nix once, keyed "<dir>/<file>" (path-unique, so
+  # cross-file collisions are impossible). Each is classified below as a pure-eval
+  # test file (has `tests`) or a build-check (a derivation).
+  subdirEntries = lib.concatMap (dir:
     let
       dirPath = ./. + "/${dir}";
       entries = builtins.readDir dirPath;
@@ -69,9 +65,22 @@ let
       stripExt = name: lib.removeSuffix ".nix" name;
     in lib.map (file: {
       name = "${dir}/${stripExt file}";
-      value = loadTestFile (dirPath + "/${file}");
+      value = import (dirPath + "/${file}") args;
     }) nixFiles
-  ) sectionDirs);
+  ) sectionDirs;
+
+  badFiles = lib.filter (e: !(e.value ? tests) && !(lib.isDerivation e.value)) subdirEntries;
+
+  # sections : { "<dir>/<file>" = <flat-tests-attrset>; } — pure-eval test files.
+  sections = lib.listToAttrs (lib.map (e: { inherit (e) name; value = e.value.tests; })
+    (lib.filter (e: e.value ? tests) subdirEntries));
+
+  # discoveredChecks : { "<dir>-<file>" = <derivation>; } — build-check files.
+  discoveredChecks = lib.throwIf (badFiles != [])
+    "tests: ${(lib.head badFiles).name}.nix must return { tests = {...}; } or a derivation"
+    (lib.listToAttrs (lib.map
+      (e: { name = lib.replaceStrings [ "/" ] [ "-" ] e.name; value = e.value; })
+      (lib.filter (e: lib.isDerivation e.value) subdirEntries)));
 
   allResults = lib.foldlAttrs (acc: sectionPath: results:
     acc // (lib.mapAttrs' (caseName: r:
@@ -127,5 +136,5 @@ in rec {
     cli = import ./cli.nix { inherit pkgs; };
 
     firewall = import ./firewall.nix { inherit pkgs; };
-  };
+  } // discoveredChecks;
 }

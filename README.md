@@ -132,6 +132,7 @@ forest status   <vm>              # systemd status
 forest up       <vm>              # start
 forest down     <vm>              # stop
 forest restart  <vm>              # restart
+forest ssh      <vm> [args...]    # SSH shell in the VM over vsock (extra args run as a remote command)
 forest logs     <vm> [args...]    # journalctl -u microvm@<vm> (extra args go to journalctl, e.g. -f)
 forest journal  <vm> [args...]    # the VM's own journal (extra args go to journalctl, e.g. -b 0)
 ```
@@ -158,6 +159,7 @@ Tab-completion is installed for bash.
 | `dns.servers`      | list of str       | `[ vmGateway, vmGateway6 ]` | DNS servers the VM resolves through. See [DNS](#dns).                                                      |
 | `dns.restrict`     | bool              | `false`                     | Drop DNS to anything outside `dns.servers`.                                                                |
 | `ssh.users`        | attrs             | `{}`                        | Create users with SSH access; opens sshd. See [SSH access](#ssh-access).                                   |
+| `vsockSsh`         | bool              | `true`                      | Expose sshd on vsock for host-side management (`forest ssh`, hot-switch). No network port; host-only. See [Host management over vsock](#host-management-over-vsock). |
 | `sops`             | submodule         | disabled                    | Per-VM sops-nix integration. See [Secrets](#secrets-sops-nix).                                             |
 | `pciPassthrough`   | list of str       | `[]`                        | PCI device addresses (BDF) to pass through; qemu only. See [GPU / PCI passthrough](#gpu--pci-passthrough). |
 | `nixpkgs`          | path              | Host's `nixpkgs`            | The nixpkgs path to use for the MicroVM.                                                                   |
@@ -165,7 +167,7 @@ Tab-completion is installed for bash.
 | `specialArgs`      | attrs             | `{}`                        | Extra attributes passed to the VM's configuration and NixOS modules.                                       |
 | `extraModules`     | list of submodule | `[]`                        | Additional NixOS modules to be merged into                                                                 |
 | `autostart`        | bool              | `true`                      | Whether this VM should be started with the host.                                                           |
-| `restartIfChanged` | bool              | `true`                      | Whether this VM should be restarted when its configuration is changed.                                     |
+| `updatePolicy`     | enum              | `"switch"`                  | How a host rebuild applies config changes: `"switch"` (hot-reload userspace over SSH, restart only on hardware change), `"restart"` (always restart), `"manual"` (install only; restart yourself). |
 
 Readonly fields: `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` (derived from the resolved index), and `fqdn` (= `<name>.forest.local`). Refer to a VM via `config.forest.vms.<name>.ipv4` / `.ipv6` / `.fqdn` instead of hard-coding.
 
@@ -305,6 +307,22 @@ Host *.forest.local
 The destination hostname is resolved on the jump host, which already has `/etc/hosts` populated for every VM. For wider reach (laptops on the tailnet, CI, etc.), set up the host's SSH access however you normally would — tailscale, public NIC, etc. — and ProxyJump through that.
 
 Use `forwardPorts` instead when you want a single VM exposed on a stable host port without requiring SSH access to the host itself.
+
+### Host management over vsock
+
+Separately from `ssh.users` (a *network* sshd on the bridge), every VM also exposes sshd over **vsock** by default (`vsockSsh = true`). This is a host-only management channel — no network port is opened, vsock is reachable only from the host — that backs two things:
+
+- `forest ssh <vm>` — open a root shell in the VM, or run a remote command (`forest ssh web journalctl -b`).
+- the in-place hot-switch (`updatePolicy = "switch"`), which applies userspace config changes over this channel without rebooting the VM.
+
+The host generates a management keypair once (`/var/lib/forest/ssh/id_ed25519`) and plants its public half into each VM's host-keys share; the guest authorizes it for root. Operators reach a VM through `forest ssh` without needing credentials of their own — `sudo` on the host is the gate.
+
+```sh
+forest ssh web                    # interactive root shell
+forest ssh web systemctl status   # run a command and exit
+```
+
+Turn it off per-VM with `vsockSsh = false`, or for the whole fleet via `forest.common.vsockSsh = lib.mkDefault false`. It's **required when `updatePolicy = "switch"`** (the default) — disable it only on VMs you set to `"restart"` or `"manual"`.
 
 ## Secrets (sops-nix)
 

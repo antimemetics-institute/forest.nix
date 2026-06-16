@@ -290,6 +290,43 @@ let
         '';
       };
 
+      vsockSsh = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Expose this VM's sshd on vsock for host-side management — both
+          `forest ssh <vm>` and the in-place hot-switch (updatePolicy = "switch")
+          ride this channel. No network port is opened; vsock is reachable only
+          from the host, which authenticates with a forest-managed key, so
+          operators need no credentials of their own.
+
+          Flip the fleet default via `forest.common.vsockSsh = lib.mkDefault
+          false`, or set it per-VM. Required when updatePolicy = "switch".
+        '';
+      };
+
+      updatePolicy = mkOption {
+        type = types.enum [ "switch" "restart" "manual" ];
+        default = "switch";
+        description = ''
+          What a host `nixos-rebuild switch` does to this VM when its
+          configuration changes:
+
+            - "switch" (default): userspace changes are applied in place over
+              SSH (switch-to-configuration, no reboot); only launch-time /
+              hardware changes (kernel, initrd, kernel cmdline, memory, vcpu,
+              shares, interfaces, devices, hypervisor binary) cold-restart the
+              VM. Forest wires up the host→VM SSH path automatically.
+
+            - "restart": any change cold-restarts the VM. This is microvm.nix's
+              stock behaviour.
+
+            - "manual": the new configuration is built and installed on the host
+              but the running VM is left untouched. Apply it yourself with
+              `forest restart <vm>` (or `systemctl restart microvm@<vm>`).
+        '';
+      };
+
       # -------------------------------------------------------------------------------------
       # microvm.nix-specific options
       # https://github.com/microvm-nix/microvm.nix/blob/main/nixos-modules/host/options.nix
@@ -346,17 +383,6 @@ let
         description = "Add this MicroVM to config.microvm.autostart?";
         type = types.bool;
         default = true;
-      };
-
-      restartIfChanged = mkOption {
-        type = types.bool;
-        default = true;
-        description = ''
-          Restart this MicroVM's services if the systemd units are changed,
-          i.e. if it has been updated by rebuilding the host.
-
-          Defaults to true for fully-declarative MicroVMs.
-        '';
       };
     };
     config =

@@ -10,6 +10,8 @@ in
   imports = [
     ./options.nix
     ./networking/host.nix
+    ./vsock-ssh/host.nix
+    (import ./hotswitch/host.nix { inherit microvmSrc; })
     "${microvmSrc}/nixos-modules/host"
   ];
 
@@ -54,7 +56,6 @@ in
             specialArgs
             extraModules
             autostart
-            restartIfChanged
             ;
 
           config = {
@@ -63,6 +64,7 @@ in
               vm.config
               (import ./networking/vm.nix { inherit name vm cfg lib enabledVms; })
             ] ++ lib.optional vm.writableStore ./store-overlay/vm.nix
+            ++ lib.optional vm.vsockSsh (import ./vsock-ssh/vm.nix)
             ++ lib.optional vm.sops.enable (import ./secrets.nix {
               inherit sopsNixSrc;
               defaultSopsFile = vm.sops.defaultSopsFile;
@@ -140,7 +142,10 @@ in
           "d /var/lib/microvms/${name}/home 0755 microvm microvm -"
           "d /var/lib/microvms/${name}/logs 0700 microvm microvm -"
           "d /var/lib/microvms/${name}/nix-store 0700 microvm microvm -"
-          "d /var/lib/microvms/${name}/host-keys 0700 microvm microvm -"
+          # o+x (no read) so the guest's sshd AuthorizedKeysCommandUser can
+          # traverse to the planted forest-mgmt.pub (vsock-ssh/vm.nix); the
+          # private host key inside stays 0600.
+          "d /var/lib/microvms/${name}/host-keys 0711 microvm microvm -"
         ]) enabledVms);
 
       systemd.services = lib.concatMapAttrs (name: vm:
