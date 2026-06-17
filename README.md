@@ -137,7 +137,7 @@ forest logs     <vm> [args...]    # journalctl -u microvm@<vm> (extra args go to
 forest journal  <vm> [args...]    # the VM's own journal (extra args go to journalctl, e.g. -b 0)
 ```
 
-Tab-completion is installed for bash.
+Tab-completion is installed for bash and fish.
 
 ## Per-VM options
 
@@ -441,6 +441,71 @@ If the GPU shares a group with something you need on the host, the options are: 
 ### Driver binding
 
 You don't need to bind devices to `vfio-pci` manually — `microvm-pci-devices@<vm>` unbinds the current driver and rebinds to vfio-pci before the VM starts, then reverses on shutdown. If a device is held by a driver that won't let go (e.g. an active display managed by `nvidia-drm`), the unbind fails; the retry config helps but the cleanest fix is making sure the host doesn't actively use the device.
+
+## Standalone VM launcher
+
+`forest.runner.<vm>` can be used to boot a VM interactively, without systemd integration. It even lets you share your forest VM as a runnable package, for example:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    forest = {
+      url = "git+file:///home/eric/git/forest.nix?shallow=1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs =
+    {
+      self,
+      nixpkgs,
+      forest,
+    }:
+    {
+      nixosConfigurations.forest = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          forest.nixosModules.default
+          (
+            { pkgs, ... }:
+            {
+              forest = {
+                enable = true;
+                common = {
+                  hypervisor = "qemu";
+                  ssh.users.johndoe = {
+                    shell = pkgs.fish;
+                  };
+                  stateVersion = "25.11";
+                };
+                vms.hello-world = {
+                  autostart = true;
+                  cores = 2;
+                  memorySize = 4096;
+                  config = { pkgs, ... }: {
+                    programs.fish.enable = true;
+                    environment.systemPackages = [ pkgs.hello ];
+                  };
+                };
+              };
+            }
+          )
+        ];
+      };
+
+      packages.x86_64-linux.default = self.nixosConfigurations.forest.config.forest.runner.hello-world;
+    };
+}
+```
+
+If any users are specified, it will auto-login on launch.
+
+### Caveats
+
+- It uses user-mode networking instead of a bridge.
+- The nix store is read-only.
+- State is saved to `~/.local/state/forest/<vm>`, separate from any deployed VMs.
 
 ## Tests
 

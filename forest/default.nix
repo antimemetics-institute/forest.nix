@@ -48,6 +48,8 @@ in
         options = [ "bind" "nosuid" "nodev" "noexec" ];
       };
 
+      forest.runner = import ./runner.nix { inherit pkgs enabledVms config; };
+
       microvm = {
         vms = lib.mapAttrs (name: vm: {
           inherit (vm)

@@ -505,5 +505,11 @@ in
         own resolver bound to the bridge IPs, or if no VM uses the host stub.
       '';
     };
+
+    runner = mkOption {
+      type = types.attrsOf types.package;
+      description = "Generated Hypervisor runners for each VM in this forest.";
+      readOnly = true;
+    };
   };
 }
