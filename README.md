@@ -451,7 +451,7 @@ You don't need to bind devices to `vfio-pci` manually — `microvm-pci-devices@<
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     forest = {
-      url = "git+file:///home/eric/git/forest.nix?shallow=1";
+      url = "github:antimemetics-institute/forest.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
