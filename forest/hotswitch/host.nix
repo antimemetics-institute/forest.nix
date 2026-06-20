@@ -54,6 +54,16 @@ let
   # idempotent switch. We use `test` (not `switch`): microvm guests have no in-VM
   # bootloader — the persistent config is whatever the host runner points init=
   # at on next cold boot — so `test` applies the new userspace now.
+  #
+  # The exit code flows straight through to the unit (writeShellApplication's
+  # `set -e` exits with the failed command's status), which is what decides
+  # whether to retry. ssh (via systemd-ssh-proxy) returns 255 for connection-level
+  # failures — right after a cold boot the guest's vsock device isn't created yet
+  # ("No such device" / "Connection reset by peer" / no banner), so the dial fails
+  # — and otherwise propagates the *remote* command's exit code. The
+  # unit's `RestartForceExitStatus = 255` retries only on that; any other non-zero
+  # is a real switch-to-configuration failure (config error, OOM, ...) and is left
+  # to fail.
   vsockSwitcher = name: guest:
     let
       toplevel = guest.system.build.toplevel;
@@ -76,9 +86,12 @@ let
       description = "Hot-switch or restart MicroVM '${name}'";
       # Order after:
       #   - install-microvm-<name>: sets the `current` symlink to the new runner.
-      #   - microvm@<name>: the guest is up (notify) — so its vsock sshd is
-      #     reachable — and `booted` is settled (microvm-set-booted runs Before
-      #     microvm@, so being after microvm@ is transitively after it).
+      #   - microvm@<name>: the VM is started and `booted` is settled
+      #     (microvm-set-booted runs Before microvm@, so being after microvm@ is
+      #     transitively after it). Note this does NOT guarantee the guest is
+      #     reachable over vsock yet — the vsock device isn't created until the
+      #     guest boots far enough, so the first connection can race it — so the
+      #     unit retries on exit 255 (RestartForceExitStatus, below).
       #   - forest-ssh-setup: the management key exists and is planted, so the
       #     ssh login can authenticate.
       after = [
@@ -91,10 +104,23 @@ let
       # this re-runs whenever something changed; the diff decides what to do.
       restartTriggers = [ guest.microvm.declaredRunner ];
       path = [ pkgs.coreutils config.systemd.package ];
+      # Retry only on a transient vsock connection failure (ssh exit 255), and
+      # only that — any other non-zero is the switch's own failure (config error,
+      # OOM, ...) which must not thrash. RestartForceExitStatus restarts on
+      # exactly 255 regardless of Restart= (left at its default `no`); the start
+      # limit bounds the retries before giving up, after which the next rebuild
+      # tries again. switch-to-configuration waits for systemd events to settle
+      # before its failure scan, and the retry traffic keeps that window open, so
+      # a retry that heals within it (the normal first-boot case) is reported as a
+      # started unit, not a failure — it only shows up failed if it never heals.
+      startLimitIntervalSec = 300;
+      startLimitBurst = 10;
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
         TimeoutStartSec = 300;
+        RestartForceExitStatus = 255;
+        RestartSec = "5s";
         SyslogIdentifier = "forest-update-${name}";
       };
       script = ''
