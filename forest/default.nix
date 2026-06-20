@@ -140,7 +140,7 @@ in
         ++ lib.flatten (lib.mapAttrsToList (name: vm: [
           "d /var/lib/microvms/${name} 0700 microvm microvm -"
           "d /var/lib/microvms/${name}/home 0755 microvm microvm -"
-          "d /var/lib/microvms/${name}/logs 0700 microvm microvm -"
+          "d /var/lib/microvms/${name}/logs 0755 microvm microvm -"
           "d /var/lib/microvms/${name}/nix-store 0700 microvm microvm -"
           # o+x (no read) so the guest's sshd AuthorizedKeysCommandUser can
           # traverse to the planted forest-mgmt.pub (vsock-ssh/vm.nix); the
