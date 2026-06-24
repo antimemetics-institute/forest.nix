@@ -2,7 +2,7 @@
   description = "forest.nix — easy declarative virtual machines";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz";
 
     microvm = {
       url = "github:microvm-nix/microvm.nix";
