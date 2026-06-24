@@ -2,8 +2,8 @@
 # bash completion for the forest CLI.
 
 __forest_complete() {
-  local cmds="list ls status up start down stop restart ssh logs journal help"
-  local vm_cmds="status up start down stop restart ssh logs journal"
+  local cmds="list ls status up start down stop restart ssh logs journal pubkey help"
+  local vm_cmds="status up start down stop restart ssh logs journal pubkey"
   local journalctl_cmds="logs journal"
   local vms="@VM_NAMES@"
   local cur="${COMP_WORDS[COMP_CWORD]}"

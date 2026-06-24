@@ -339,13 +339,13 @@ forest.vms.foo = {
 };
 ```
 
-The VM's persistent SSH host key is used as the age identity for sops. To enroll a freshly-created VM:
+Each sops-enabled VM gets a **post-quantum age key** (hybrid ML-KEM-768 + X25519, `age-keygen -pq`) provisioned on the host as its sops identity. To enroll a VM, print its public recipient and add it to `.sops.yaml`:
 
 ```sh
-ssh-keyscan <vm-ip> | ssh-to-age   # add this age public key to .sops.yaml
+forest pubkey web   # prints age1pq1… — add this recipient to .sops.yaml
 ```
 
-The public key on disk is at `/var/lib/microvms/<vm>/host-keys/ssh_host_ed25519_key.pub`.
+The key is provisioned on host activation, so you can enroll and encrypt secrets before the VM ever starts. The keypair lives at `/var/lib/microvms/<vm>/host-keys/age-pq.{key,pub}` and is stable across rebuilds.
 
 ## Persistent state
 

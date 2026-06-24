@@ -74,6 +74,7 @@ in pkgs.runCommandLocal "forest-cli-tests" {
   run journal web; expect "journal"     "sudo journalctl -i /var/lib/microvms/web/logs/journal/*/system.journal"
   run logs web -f;            expect "logs passthrough"    "journalctl -u microvm@web -f"
   run journal web -b 0;       expect "journal passthrough" "sudo journalctl -i /var/lib/microvms/web/logs/journal/*/system.journal -b 0"
+  run pubkey web;     expect "pubkey"              "sudo cat /var/lib/microvms/web/host-keys/age-pq.pub"
 
   # ---- error paths ----
   expect_rc 2 "missing-vm exits 2"     up

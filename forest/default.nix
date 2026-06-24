@@ -11,6 +11,7 @@ in
     ./options.nix
     ./networking/host.nix
     ./vsock-ssh/host.nix
+    ./secrets/host.nix
     (import ./hotswitch/host.nix { inherit microvmSrc; })
     "${microvmSrc}/nixos-modules/host"
   ];
@@ -106,8 +107,10 @@ in
                   mountPoint = "/var/log";
                 }
                 # Persistent SSH host keys — stable identity across rebuilds.
-                # sshd generates the key here on first boot if missing.
-                # Public key can be converted to age format for sops: ssh-keyscan <ip> | ssh-to-age
+                # sshd generates the key here on first boot if missing. For sops
+                # VMs this share also holds the post-quantum age key the host
+                # provisions (forest/secrets/host.nix); `forest pubkey <vm>`
+                # prints its recipient for .sops.yaml.
                 {
                   proto = "virtiofs";
                   tag = "host-keys";

@@ -37,9 +37,10 @@ complete -c forest -n __forest_command -a restart -d "Restart a VM"
 complete -c forest -n __forest_command -a ssh -d "Open an SSH shell in the VM over vsock"
 complete -c forest -n __forest_command -a logs -d "Show journalctl for the systemd unit"
 complete -c forest -n __forest_command -a journal -d "Open the VM's own journal"
+complete -c forest -n __forest_command -a pubkey -d "Print the VM's post-quantum age public key (for .sops.yaml)"
 complete -c forest -n __forest_command -a help -d "Show help"
 
-for _cmd in status up start down stop restart ssh logs journal
+for _cmd in status up start down stop restart ssh logs journal pubkey
   complete -c forest -n "__forest_using_command $_cmd && __forest_vm" -a '@VM_NAMES@' -d 'forest VM'
 end
 
