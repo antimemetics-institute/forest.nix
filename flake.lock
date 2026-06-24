@@ -8,11 +8,11 @@
         "spectrum": "spectrum"
       },
       "locked": {
-        "lastModified": 1781389237,
-        "narHash": "sha256-Ne1/E5XNUq0gleaQz0vW5R4xf/0h/uEZ+bOW1aNjeQk=",
+        "lastModified": 1782237255,
+        "narHash": "sha256-TqX+cORDrRnMe7n6LOiAOL1LCuimIuWQx6hao+/MTk4=",
         "owner": "microvm-nix",
         "repo": "microvm.nix",
-        "rev": "6ad601df0a07d9855c5e8f9b81135ecaf7c287eb",
+        "rev": "403a54ef27d821cf7a6becf8b57cd3c38b1be7a3",
         "type": "github"
       },
       "original": {
@@ -23,18 +23,15 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1781074563,
-        "narHash": "sha256-md8WlXOlfnIeHeOScMTTHFyf2d6iaTwPl2apR5EQ3P4=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "9ae611a455b90cf061d8f332b977e387bda8e1ca",
-        "type": "github"
+        "lastModified": 1781577229,
+        "narHash": "sha256-rcUHdUtJEvMdNEl2Wq+YpHraHKfcer3KsBscpZEF2Yg=",
+        "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1017464.567a49d1913c/nixexprs.tar.xz"
       },
       "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable",
-        "repo": "nixpkgs",
-        "type": "github"
+        "type": "tarball",
+        "url": "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz"
       }
     },
     "root": {
@@ -51,11 +48,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1780547341,
-        "narHash": "sha256-Gq8KNx5A7hBB3uGJaj6eQfLDIz5YdLu92gqBcvHvoUo=",
+        "lastModified": 1782165805,
+        "narHash": "sha256-478kKQBvK6SYTOdN2h9jhKJv94nbXRbFMfuL1WshErg=",
         "owner": "Mic92",
         "repo": "sops-nix",
-        "rev": "9ed65852b6257fbeae4355bc24ecfea307ca759a",
+        "rev": "56b24064fdcaedca53553b1a6d607fd23b613a24",
         "type": "github"
       },
       "original": {

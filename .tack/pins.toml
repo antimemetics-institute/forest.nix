@@ -3,7 +3,7 @@
 
 # shorturl schemes. scheme:rest expands rest into {path}
 [shorturls]
-nixpkgs = "https://channels.nixos.org/{path}/nixexprs.tar.xz"
+channel = "https://channels.nixos.org/{path}/nixexprs.tar.xz"
 # gh = "github:{path}"
 
 # all_follow: input name -> top-level pin it follows wherever it appears
@@ -23,7 +23,7 @@ nixpkgs = "nixpkgs"
 #   submodules      fetch git submodules
 #   unpack          fixed-only: tarball or file
 [inputs.nixpkgs]
-url = "nixpkgs:nixos-unstable"
+url = "channel:nixos-unstable"
 
 [inputs."microvm.nix"]
 url = "github:microvm-nix/microvm.nix"
