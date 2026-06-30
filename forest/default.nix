@@ -11,6 +11,7 @@ in
     ./options.nix
     ./networking/host.nix
     ./vsock-ssh/host.nix
+    ./secrets/host.nix
     (import ./hotswitch/host.nix { inherit microvmSrc; })
     "${microvmSrc}/nixos-modules/host"
   ];
@@ -65,7 +66,7 @@ in
               (import ./networking/vm.nix { inherit name vm cfg lib enabledVms; })
             ] ++ lib.optional vm.writableStore ./store-overlay/vm.nix
             ++ lib.optional vm.vsockSsh (import ./vsock-ssh/vm.nix)
-            ++ lib.optional vm.sops.enable (import ./secrets.nix {
+            ++ lib.optional vm.sops.enable (import ./secrets/vm.nix {
               inherit sopsNixSrc;
               defaultSopsFile = vm.sops.defaultSopsFile;
             })
@@ -106,8 +107,10 @@ in
                   mountPoint = "/var/log";
                 }
                 # Persistent SSH host keys — stable identity across rebuilds.
-                # sshd generates the key here on first boot if missing.
-                # Public key can be converted to age format for sops: ssh-keyscan <ip> | ssh-to-age
+                # sshd generates the key here on first boot if missing. For sops
+                # VMs this share also holds the post-quantum age key the host
+                # provisions (forest/secrets/host.nix); `forest pubkey <vm>`
+                # prints its recipient for .sops.yaml.
                 {
                   proto = "virtiofs";
                   tag = "host-keys";
@@ -123,6 +126,10 @@ in
               ];
             };
 
+            # TODO now that host keys aren't used for sops anymore, is there still a need
+            #  to keep this enabled? Generating SSH host keys is still nice for identity,
+            #  but ONLY IF something else enabled SSH (like `vsock-ssh` or `ssh.users`).
+            #  Also, can we move everything from this `microvm` block to `vm.nix`-style imports?
             services.openssh = {
               enable = true;
               openFirewall = lib.mkDefault false;

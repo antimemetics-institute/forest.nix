@@ -23,6 +23,7 @@ usage() {
   echo "  ssh      <vm> [args...]    Open an SSH shell in the VM over vsock"
   echo "  logs     <vm> [args...]    Show journalctl for the systemd unit"
   echo "  journal  <vm> [args...]    Open the VM's own journal"
+  echo "  pubkey   <vm>              Print the VM's post-quantum age public key (for .sops.yaml)"
   echo "  help                       Show this message"
   echo ""
   echo "Arguments:"
@@ -83,6 +84,17 @@ case "$cmd" in
     require_vm
     shift 2
     sudo journalctl -i "/var/lib/microvms/$vm/logs/journal/"*"/system.journal" "$@"
+    ;;
+  pubkey)
+    require_vm
+    # The post-quantum age recipient the host provisions for this VM's sops
+    # identity (forest/secrets/host.nix). Lives in the host-keys share, under
+    # /var/lib/microvms (0700 microvm), so reading it needs privilege.
+    if ! sudo cat "/var/lib/microvms/$vm/host-keys/age-pq.pub" 2>/dev/null; then
+      printf "error: no age public key for '%s' yet.\n" "$vm" >&2
+      printf "It's provisioned for sops-enabled VMs on host activation. Set 'sops.enable = true' and rebuild the host.\n" >&2
+      exit 1
+    fi
     ;;
   help|-h|--help)
     usage
