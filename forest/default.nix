@@ -126,6 +126,10 @@ in
               ];
             };
 
+            # TODO now that host keys aren't used for sops anymore, is there still a need
+            #  to keep this enabled? Generating SSH host keys is still nice for identity,
+            #  but ONLY IF something else enabled SSH (like `vsock-ssh` or `ssh.users`).
+            #  Also, can we move everything from this `microvm` block to `vm.nix`-style imports?
             services.openssh = {
               enable = true;
               openFirewall = lib.mkDefault false;
