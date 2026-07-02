@@ -1,16 +1,17 @@
-# Guest-side vsock-SSH access. Imported into a VM's NixOS config when
-# vsockSsh = true (the default; see forest/default.nix). This is the shared
-# host→VM management channel: `forest ssh <vm>` and the hot-switch
-# (forest/hotswitch) are both consumers of it.
+# Guest-side vsock-SSH access for a user. Imported by the fleet
+# (forest/default.nix, user = "root") when vsockSsh = true — the shared host→VM
+# management channel `forest ssh <vm>` and the hot-switch (forest/hotswitch) ride
+# it — and injected by the imperative runner with its login user.
 #
 # It exposes sshd on vsock (microvm.vsock.ssh.enable) — socket-activated by
 # systemd's ssh-generator, so each connection is its own sshd@ instance and a
 # config switch that restarts sshd does not sever a live session — and
-# authorizes the host's management key for root. No network port is opened;
+# authorizes the host's management key for `user`. No network port is opened;
 # vsock is reachable only from the host.
 #
 # The host-side pieces (key generation/planting, the ssh client config) live in
 # forest/vsock-ssh/host.nix.
+{ user }:
 { pkgs, ... }:
 
 {
@@ -18,18 +19,21 @@
   # through the hypervisor's vsock.
   microvm.vsock.ssh.enable = true;
 
-  # We expose sshd to the host, so lock it down: key-only auth, key-only root
-  # (the host management connection logs in as root), logins restricted to root
-  # plus any ssh.users. These compose with forest/users.nix when present:
+  # We expose sshd to the host, so lock it down: key-only auth, logins restricted
+  # to `user` plus any ssh.users. These compose with forest/users.nix when present:
   # AllowUsers is a list and concatenates, PasswordAuthentication = false matches,
-  # and plain-priority PermitRootLogin beats its mkDefault "no".
+  # and plain-priority PermitRootLogin beats its mkDefault "no". PermitRootLogin is
+  # unconditional because sshd gates root logins by uid, not name: the imperative
+  # login user can be a uid-0 alias (agents/claude), which trips it too — while for
+  # a real non-root `user` it simply has no effect (and root, lacking a planted
+  # key, still can't log in).
   services.openssh.settings = {
     PasswordAuthentication = false;
     PermitRootLogin = "prohibit-password";
-    AllowUsers = [ "root" ];
+    AllowUsers = [ user ];
   };
 
-  # Authorize the host's management key for root. The host plants its pubkey into
+  # Authorize the host's management key for `user`. The host plants its pubkey into
   # the host-keys share at /var/lib/host-keys/forest-mgmt.pub; sshd reads it from
   # there on every connection via AuthorizedKeysCommand, so there is no
   # sequencing at all — the first plant (once the VM is up) and any later re-plant
@@ -48,11 +52,11 @@
     mode = "0555";
     text = ''
       #!/bin/sh
-      # sshd passes the user being authenticated as $1; only root carries the
+      # sshd passes the user being authenticated as $1; only `${user}` carries the
       # forest management key.
       # Absolute path: sshd runs AuthorizedKeysCommand with a near-empty PATH, so
       # a bare `cat` exits 127 (command not found) and every login is rejected.
-      [ "$1" = root ] || exit 0
+      [ "$1" = ${user} ] || exit 0
       exec ${pkgs.coreutils}/bin/cat /var/lib/host-keys/forest-mgmt.pub
     '';
   };

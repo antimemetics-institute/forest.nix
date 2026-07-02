@@ -65,7 +65,7 @@ in
               vm.config
               (import ./networking/vm.nix { inherit name vm cfg lib enabledVms; })
             ] ++ lib.optional vm.writableStore ./store-overlay/vm.nix
-            ++ lib.optional vm.vsockSsh (import ./vsock-ssh/vm.nix)
+            ++ lib.optional vm.vsockSsh (import ./vsock-ssh/vm.nix { user = "root"; })
             ++ lib.optional vm.sops.enable (import ./secrets/vm.nix {
               inherit sopsNixSrc;
               defaultSopsFile = vm.sops.defaultSopsFile;

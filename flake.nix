@@ -29,6 +29,20 @@
         sopsNixSrc = sops-nix;
       };
 
+      # Imperative VMs: `nix run .#agents.claude` boots a sandboxed VM and drops
+      # you in over ssh. See forest/imperative.
+      apps = forAllSystems ({ pkgs, ... }:
+        let
+          launcherFor = import ./forest/imperative {
+            inherit pkgs;
+            forestModule = self.nixosModules.default;
+          };
+          # Wrap a built launcher in the flake-app schema `nix run` consumes.
+          mkApp = spec: { type = "app"; program = pkgs.lib.getExe (launcherFor spec); };
+        in {
+          agents.claude = mkApp (import ./forest/imperative/agents/claude.nix);
+        });
+
       checks = forAllSystems ({ pkgs, ... }:
         (import ./tests { inherit pkgs; }).checks);
 
