@@ -508,26 +508,40 @@ in
 
     vmSubnet = mkOption {
       type = types.str;
-      default = "192.168.69.0/24";
-      description = "IPv4 subnet for the VMs.";
+      readOnly = true;
+      description = ''
+        IPv4 subnet for the VMs. Currently hardcoded; if you want it configurable,
+        please open an issue.
+      '';
     };
 
     vmSubnet6 = mkOption {
       type = types.str;
-      default = "fd69::/64";
-      description = "IPv6 subnet for the VMs.";
+      readOnly = true;
+      description = ''
+        IPv6 subnet for the VMs. Currently hardcoded; if you want it configurable,
+        please open an issue.
+      '';
     };
 
     vmGateway = mkOption {
       type = types.str;
-      default = "192.168.69.1";
-      description = "Gateway/host IP for the VMs.";
+      readOnly = true;
+      description = ''
+        Gateway/host IP for the VMs. Fixed at 192.168.69.1 (the first address
+        of forest.vmSubnet). Currently hardcoded; if you want it configurable,
+        please open an issue.
+      '';
     };
 
     vmGateway6 = mkOption {
       type = types.str;
-      default = "fd69::1";
-      description = "IPv6 gateway/host for the VMs.";
+      readOnly = true;
+      description = ''
+        IPv6 gateway/host for the VMs. Fixed at fd69::1 (the first address of
+        forest.vmSubnet6). Currently hardcoded; if you want it configurable,
+        please open an issue.
+      '';
     };
 
     bridgeInterface = mkOption {
@@ -553,5 +567,17 @@ in
         own resolver bound to the bridge IPs, or if no VM uses the host stub.
       '';
     };
+  };
+
+  # These are readOnly: their values are baked into per-VM address derivation
+  # and assorted plumbing, so a user override would silently break networking.
+  # Defining them here (rather than via `default`) is what makes readOnly
+  # actually reject user definitions — the module system only errors when a
+  # readOnly option has more than one definition.
+  config.forest = {
+    vmSubnet = "192.168.69.0/24";
+    vmSubnet6 = "fd69::/64";
+    vmGateway = "192.168.69.1";
+    vmGateway6 = "fd69::1";
   };
 }

@@ -178,12 +178,15 @@ Readonly fields: `tapInterface`, `ipv4`, `ipv6`, `macAddress`, `vsockCid` (deriv
 | `enable`            | bool        | `true`                          | Master switch.                                         |
 | `vms`               | attrs       | `{}`                            | VM definitions keyed by name. See [Per-VM options](#per-vm-options). |
 | `common`            | module      | `{}`                            | Defaults merged into every VM. See [`forest.common`](#forestcommon). |
-| `vmSubnet`          | str         | `"192.168.69.0/24"`             | IPv4 subnet for the bridge.                            |
-| `vmSubnet6`         | str         | `"fd69::/64"`                   | IPv6 subnet for the bridge.                            |
-| `vmGateway`         | str         | `"192.168.69.1"`                | Host IPv4 on the bridge (also the default DNS server). |
-| `vmGateway6`        | str         | `"fd69::1"`                     | Host IPv6 on the bridge.                               |
+| `vmSubnet`          | str         | `"192.168.69.0/24"` (read-only) | IPv4 subnet for the bridge.                            |
+| `vmSubnet6`         | str         | `"fd69::/64"` (read-only)       | IPv6 subnet for the bridge.                            |
+| `vmGateway`         | str         | `"192.168.69.1"` (read-only)    | Host IPv4 on the bridge (also the default DNS server). |
+| `vmGateway6`        | str         | `"fd69::1"` (read-only)         | Host IPv6 on the bridge.                               |
 | `bridgeInterface`   | str         | `"forest"`                      | Linux bridge name.                                     |
 | `serveDns`          | bool        | _auto_                          | Whether forest configures `services.resolved` with a stub on the bridge. See [DNS](#dns). |
+
+`vmSubnet`, `vmSubnet6`, `vmGateway`, and `vmGateway6` are currently hardcoded
+(read-only); if you want them configurable, please open an issue.
 
 ## Networking
 
