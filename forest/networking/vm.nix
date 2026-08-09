@@ -33,6 +33,8 @@
   # Feature-detect the resolved module shape (see forest/networking/host.nix
   # for the full rationale). 25.11 only has extraConfig; newer nixpkgs has
   # the structured `settings` attr.
+  services.timesyncd.enable = lib.mkDefault vm.internetAccess;
+
   services.resolved = {
     enable = true;
   } // (if options.services.resolved ? settings then {
