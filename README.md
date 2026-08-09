@@ -477,7 +477,7 @@ You don't need to bind devices to `vfio-pci` manually — `microvm-pci-devices@<
 > [!WARNING]
 > This is a new experimental API. The surface may shift without notice.
 
-Separately from the declarative fleet, forest can boot **ephemeral, unprivileged sandbox VMs** with a writable store overlay.
+Separately from the declarative fleet, forest can boot **ephemeral, unprivileged sandbox VMs** with a writable store overlay. A VM gets 4 GB RAM and 4 vCPUs by default; set `memorySize` / `cores` in the spec's `vm` to change that.
 
 Start one that mounts your current directory ([`forest/imperative/specs/minimal.nix`](forest/imperative/specs/minimal.nix)) with:
 
