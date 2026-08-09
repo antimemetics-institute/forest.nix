@@ -42,10 +42,17 @@ let
     guest.config.microvm.shares;
 
   imperative = guest.extendModules {
-    modules = [{
+    modules = [({ pkgs, ... }: {
       # Imperative mgmt channel: vsock sshd + planted-key auth + lockdown for
       # `user` — the same vsock-ssh guest module the fleet imports (with root).
       imports = [ (import ../vsock-ssh/vm.nix { inherit user; }) ];
+
+      # qemu_test instead of the default qemu_kvm: microvm's optimize.enable
+      # re-overrides its qemu with nixosTestRunner=true, and qemu_kvm + that flag
+      # is a variant Hydra never builds — a guaranteed local qemu compile. On
+      # qemu_test the re-override is a no-op, so the exact cache.nixos.org store
+      # path is substituted instead.
+      microvm.qemu.package = pkgs.qemu_test;
 
       # qemu is required: it's the only microvm hypervisor with built-in
       # unprivileged (slirp) user-mode networking. Override at a priority stronger
@@ -67,7 +74,7 @@ let
       systemd.network.networks."20-microvm".networkConfig = lib.mkForce { DHCP = "yes"; };
 
       microvm.shares = lib.mkForce rebasedShares;
-    }];
+    })];
   };
 in
 # Surface a clear error (rather than a deep microvm one) when a VM forced a
