@@ -5,6 +5,7 @@ with lib;
 
 let
   cfg = config.forest;
+  forestUtils = import ./utils { inherit lib; };
 in
 {
   imports = [
@@ -207,6 +208,25 @@ in
             Available VMs: ${lib.concatStringsSep ", " vmNames}
           '';
         }) vm.dependsOn
+      ) enabledVms))
+      ++ (lib.flatten (lib.mapAttrsToList (vmName: vm:
+        lib.imap0 (i: e: {
+          assertion = !(forestUtils.subnetsOverlap e.daddr cfg.vmSubnet
+                     || forestUtils.subnetsOverlap e.daddr cfg.vmSubnet6);
+          message = ''
+            forest.vms.${vmName}.allowEgress[${toString i}] targets
+            ${e.daddr}, which overlaps a forest VM subnet (${cfg.vmSubnet},
+            ${cfg.vmSubnet6}).
+
+            allowEgress is for destinations the *host* routes to — a wireguard
+            peer, a LAN box, a public API. Traffic between forest VMs never
+            leaves the bridge and may only be governed by `dependsOn`:
+
+              forest.vms.${vmName}.dependsOn = [
+                { target = "<vm-name>"; port = ${toString e.port}; }
+              ];
+          '';
+        }) vm.allowEgress
       ) enabledVms))
       ++ (lib.mapAttrsToList (vmName: vm: {
         assertion = vm.pciPassthrough == [] || vm.hypervisor == "qemu";
