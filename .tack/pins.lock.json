@@ -1,32 +1,24 @@
 {
   "microvm.nix": {
-    "lastModified": 1782237255,
-    "narHash": "sha256-TqX+cORDrRnMe7n6LOiAOL1LCuimIuWQx6hao+/MTk4=",
+    "type": "github",
     "owner": "microvm-nix",
     "repo": "microvm.nix",
-    "rev": "403a54ef27d821cf7a6becf8b57cd3c38b1be7a3",
-    "type": "github"
+    "rev": "e615e23267bf10d483fb44f759d4e61c354cc0f4",
+    "narHash": "sha256-H/0YgQ+3BtNbdeSVuqjU7ElneBzPPuIKcuWOi0ZUktQ=",
+    "lastModified": 1785843289
   },
   "nixpkgs": {
-    "narHash": "sha256-rcUHdUtJEvMdNEl2Wq+YpHraHKfcer3KsBscpZEF2Yg=",
-    "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
     "type": "tarball",
-    "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1017464.567a49d1913c/nixexprs.tar.xz"
+    "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1049422.f13ff45afd1b/nixexprs.tar.xz",
+    "rev": "f13ff45afd1bb73e640eaa08a7066dbed07e3238",
+    "narHash": "sha256-CgKDSHL6rqAAQkkvg1xaZDQXb77+4XW73iGcUMJ+2w0="
   },
   "sops-nix": {
-    "lastModified": 1782165805,
-    "narHash": "sha256-478kKQBvK6SYTOdN2h9jhKJv94nbXRbFMfuL1WshErg=",
+    "type": "github",
     "owner": "Mic92",
     "repo": "sops-nix",
-    "rev": "56b24064fdcaedca53553b1a6d607fd23b613a24",
-    "type": "github"
-  },
-  "tack": {
-    "lastModified": 1782105670,
-    "narHash": "sha256-HOie9E1cVjloXbRt+Frz8ZalsU/sklhklBr2yHyclm8=",
-    "owner": "manic-systems",
-    "repo": "tack",
-    "rev": "d61ffcb1ea96fe0bb4157aabc0ad9a337a376417",
-    "type": "github"
+    "rev": "f1406619a3884cd5c47992a70b8b35c9c0fcb4c9",
+    "narHash": "sha256-aCWC8ngycU7OdJrU2+Je3qf+1a2ykuBvpPhZT/9tXMc=",
+    "lastModified": 1783174389
   }
 }

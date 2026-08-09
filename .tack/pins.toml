@@ -30,6 +30,3 @@ url = "github:microvm-nix/microvm.nix"
 
 [inputs.sops-nix]
 url = "github:Mic92/sops-nix"
-
-[inputs.tack]
-url = "github:manic-systems/tack"
