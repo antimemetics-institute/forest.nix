@@ -30,7 +30,7 @@ let
 
   # Derive the imperative share list from the guest's *already-declared* shares
   # (forest/lib/shares.nix's base set, store-overlay's nix-var, and whatever the
-  # VM itself declares — e.g. agents.claude's cwd/.claude mounts). We only rebase
+  # VM itself declares — e.g. the claude spec's cwd/.claude mounts). We only rebase
   # the managed state-dir sources — absolute under the fleet stateRoot — to
   # relative tag names, resolved against forest-run-vm's per-user state dir (where
   # the launcher plants each tag's runtime source). Host-path sources
@@ -42,10 +42,17 @@ let
     guest.config.microvm.shares;
 
   imperative = guest.extendModules {
-    modules = [{
+    modules = [({ pkgs, ... }: {
       # Imperative mgmt channel: vsock sshd + planted-key auth + lockdown for
       # `user` — the same vsock-ssh guest module the fleet imports (with root).
       imports = [ (import ../vsock-ssh/vm.nix { inherit user; }) ];
+
+      # qemu_test instead of the default qemu_kvm: microvm's optimize.enable
+      # re-overrides its qemu with nixosTestRunner=true, and qemu_kvm + that flag
+      # is a variant Hydra never builds — a guaranteed local qemu compile. On
+      # qemu_test the re-override is a no-op, so the exact cache.nixos.org store
+      # path is substituted instead.
+      microvm.qemu.package = pkgs.qemu_test;
 
       # qemu is required: it's the only microvm hypervisor with built-in
       # unprivileged (slirp) user-mode networking. Override at a priority stronger
@@ -67,7 +74,7 @@ let
       systemd.network.networks."20-microvm".networkConfig = lib.mkForce { DHCP = "yes"; };
 
       microvm.shares = lib.mkForce rebasedShares;
-    }];
+    })];
   };
 in
 # Surface a clear error (rather than a deep microvm one) when a VM forced a
