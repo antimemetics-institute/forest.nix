@@ -198,11 +198,27 @@ rec {
     in
       lib.concatStringsSep "\n" (lib.mapAttrsToList (_: perVm) vms);
 
-  # Forward rules for VMs allowed to reach the public internet.
+  # Private IP egress is blocked, except for what `allowEgress` sets
+  privateRanges4 = [
+    "10.0.0.0/8"      # RFC1918 private
+    "172.16.0.0/12"   # RFC1918 private
+    "192.168.0.0/16"  # RFC1918 private
+    "127.0.0.0/8"     # loopback
+    "169.254.0.0/16"  # link-local
+    "224.0.0.0/4"     # multicast
+  ];
+
+  privateRanges6 = [
+    "::1/128"    # loopback
+    "fe80::/10"  # link-local
+    "fc00::/7"   # ULA (unique local)
+    "ff00::/8"   # multicast
+  ];
+
   generateInternetForwardRules = vms:
     lib.concatStringsSep "\n" (lib.mapAttrsToList (_: vm: ''
-            ip saddr ${vm.ipv4} ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4 } drop
-            ip6 saddr ${vm.ipv6} ip6 daddr { ::1/128, fe80::/10, fc00::/7, ff00::/8 } drop
+            ip saddr ${vm.ipv4} ip daddr { ${lib.concatStringsSep ", " privateRanges4} } drop
+            ip6 saddr ${vm.ipv6} ip6 daddr { ${lib.concatStringsSep ", " privateRanges6} } drop
             ip saddr ${vm.ipv4} accept
             ip6 saddr ${vm.ipv6} accept'') vms);
 
