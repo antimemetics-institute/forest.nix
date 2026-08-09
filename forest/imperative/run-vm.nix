@@ -46,7 +46,7 @@ pkgs.writeShellApplication {
       # otherwise an unmapped guest uid can't own files on the share. Needs setuid
       # newuidmap/newgidmap on PATH (shadow); standard wherever rootless containers
       # run, which is the same precondition as unprivileged userns itself.
-      exec unshare --user --map-root-user --map-auto -- \
+      exec unshare --user --map-root-user --map-auto --mount -- \
         env FOREST_IN_USERNS=1 "$0" "$runner" "$stateDir" "$cid"
     fi
 
@@ -60,11 +60,21 @@ pkgs.writeShellApplication {
 
     if [ -e "$runner/bin/virtiofsd-run" ]; then
       # Ensure each managed share's relative source dir exists. Absolute sources
-      # (/nix/store) are host-provided; dynamic ones are caller-planted symlinks
-      # (mkdir -p is a no-op on those).
+      # (/nix/store) are host-provided. Caller-planted symlinks are converted to
+      # bind mounts (in our private mount ns, so they vanish with us): virtiofsd
+      # opens --shared-dir with O_NOFOLLOW, and since 1.14.0 (commit 89a24d1)
+      # no longer canonicalizes the path first outside chroot sandbox mode — a
+      # symlink source is served as the FS root itself, which the guest kernel
+      # marks as a bad inode, and every access on the share EIOs.
       for d in "$runner"/share/microvm/virtiofs/*/; do
         src=$(cat "$d/source")
-        case "$src" in /*) : ;; *) mkdir -p "$src" ;; esac
+        case "$src" in /*) continue ;; esac
+        if [ -L "$src" ]; then
+          tgt=$(readlink -f "$src")
+          rm "$src" && mkdir "$src" && mount --bind "$tgt" "$src"
+        else
+          mkdir -p "$src"
+        fi
       done
 
       # microvm's supervisord-managed virtiofsd, unmodified. One PID owns every
