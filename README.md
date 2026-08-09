@@ -164,6 +164,7 @@ Tab-completion is installed for bash.
 | `config`           | module            | _required_                  | NixOS module for the VM.                                                                                   |
 | `internetAccess`   | bool              | `true`                      | Allow public internet via host NAT.                                                                        |
 | `dependsOn`        | list              | `[]`                        | Allowed outbound connections to other VMs. See [Inter-VM dependencies](#inter-vm-dependencies).            |
+| `allowEgress`      | list              | `[]`                        | Extra outbound destinations, on top of `internetAccess`. See [Egress carveouts](#egress-carveouts).        |
 | `forwardPorts`     | list              | `[]`                        | Inbound DNAT into the VM. See [Inbound port forwards](#inbound-port-forwards).                             |
 | `dns.servers`      | list of str       | `[ vmGateway, vmGateway6 ]` | DNS servers the VM resolves through. See [DNS](#dns).                                                      |
 | `dns.restrict`     | bool              | `false`                     | Drop DNS to anything outside `dns.servers`.                                                                |
@@ -206,6 +207,7 @@ What every VM gets without configuration:
 - DNS that resolves through the host's bridge IPs (see [DNS](#dns)).
 - Default-deny inter-VM traffic — a VM cannot reach another unless it declares a [`dependsOn`](#inter-vm-dependencies) entry.
 - Internet access via host NAT, gated per-VM by `internetAccess` (default `true`).
+- No path to the host's other networks. The private ranges (RFC1918, loopback, link-local, multicast, ULA) are dropped for **every** VM — `internetAccess` gates the public internet only. Open a specific destination with [`allowEgress`](#egress-carveouts).
 
 `index` is auto-assigned by walking VMs in name order and giving each the lowest free slot. **Once a VM holds persistent state (a database, an issued cert, a deployed service), pin its index explicitly** so its IP doesn't shift when you add or rename other VMs. Set `forest.vms.<name>.index = N` (range 0–244) to pin; auto-assignment skips pinned slots, so pins and unset values mix freely. Pins must be unique.
 
@@ -222,6 +224,37 @@ forest.vms.web = {
 ```
 
 Generates the matching firewall accept rules; connection tracking handles return traffic. Reach the other VMs by name — `db.forest.local`, or `config.forest.vms.db.fqdn` if you want to avoid hard-coding the domain.
+
+### Egress carveouts
+
+`allowEgress` opens specific outbound destinations. These rules sit ahead of every drop, so an the VM can reach destinations forest would ordinarily block.
+
+```nix
+forest.vms.dev = {
+  allowEgress = [
+    { daddr = "10.10.0.3"; port = 22; }                           # a wireguard peer
+    { daddr = "192.168.1.0/24"; port = 631; protocol = "both"; }  # printers on the LAN
+  ];
+  config = { ... }: { /* ... */ };
+};
+```
+
+It covers two cases:
+
+- **Private destinations**, which are ordinarily blocked — a wireguard peer, a NAS, the CGNAT (tailnet). a box on your LAN is unreachable by default even from a VM with full internet. An entry here is the only way through.
+- **Public destinations from a VM with `internetAccess = false`**, which is how you build "no internet except this one API", e.g.:
+
+  ```nix
+  forest.vms.agent = {
+    internetAccess = false;
+    allowEgress = [ { daddr = "198.51.100.0/24"; port = 443; } ];
+    config = { ... }: { /* ... */ };
+  };
+  ```
+
+`allowEgress` is **additive, never restrictive**. It grants destinations **on top** of whatever `internetAccess` already allows — setting it on a VM with `internetAccess = true` does not narrow that VM to the listed destinations.
+
+For reaching other forest VMs, use [`dependsOn`](#inter-vm-dependencies).
 
 ### DNS
 

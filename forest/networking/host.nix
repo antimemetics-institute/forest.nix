@@ -10,6 +10,11 @@ let
   enabledVms = lib.filterAttrs (_: vm: vm.enable) cfg.vms;
   internetVms = lib.filterAttrs (_: vm: vm.internetAccess) enabledVms;
   restrictedVms = lib.filterAttrs (_: vm: vm.dns.restrict) enabledVms;
+  # VMs whose allowEgress needs its own masquerade: the ones with
+  # internetAccess are already covered by the blanket NAT rules.
+  allowEgressNatVms = lib.filterAttrs
+    (_: vm: !vm.internetAccess && vm.allowEgress != [])
+    enabledVms;
 in {
   config = mkIf cfg.enable {
     networking.hosts = mkMerge (lib.mapAttrsToList (_: vm: {
@@ -103,6 +108,11 @@ in {
             # VM-specific dependency rules
             ${forestUtils.generateAllVmConnectionRules enabledVms}
 
+            # Per-VM egress carveouts, ahead of every drop below: the
+            # private-range drops that apply to VMs with internetAccess, and
+            # the chain-end catch-all that denies everything for those without.
+            ${forestUtils.generateAllowEgressRules enabledVms}
+
             # Block other inter-VM forward traffic
             ip saddr ${cfg.vmSubnet} ip daddr ${cfg.vmSubnet} drop comment "Block VM traffic from being forwarded IPv4"
             ip6 saddr ${cfg.vmSubnet6} ip6 daddr ${cfg.vmSubnet6} drop comment "Block VM traffic from being forwarded IPv6"
@@ -123,6 +133,7 @@ in {
           chain postrouting {
             type nat hook postrouting priority srcnat; policy accept;
 ${forestUtils.generateNat4Rules cfg.bridgeInterface internetVms}
+${forestUtils.generateAllowEgressNatRules "ipv4" cfg.bridgeInterface allowEgressNatVms}
           }
           chain prerouting {
             type nat hook prerouting priority dstnat; policy accept;
@@ -137,6 +148,7 @@ ${forestUtils.generatePortForwardRules "ipv4" enabledVms}
           chain postrouting {
             type nat hook postrouting priority 100; policy accept;
 ${forestUtils.generateNat6Rules cfg.bridgeInterface internetVms}
+${forestUtils.generateAllowEgressNatRules "ipv6" cfg.bridgeInterface allowEgressNatVms}
           }
           chain prerouting {
             type nat hook prerouting priority dstnat; policy accept;

@@ -136,7 +136,7 @@ let
     singleVm = {
       input = singleVmInternet;
       expected = ''
-            ip saddr 192.168.69.10 ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4 } drop
+            ip saddr 192.168.69.10 ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4 } drop
             ip6 saddr fd69::10 ip6 daddr { ::1/128, fe80::/10, fc00::/7, ff00::/8 } drop
             ip saddr 192.168.69.10 accept
             ip6 saddr fd69::10 accept'';

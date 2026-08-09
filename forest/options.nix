@@ -234,6 +234,54 @@ let
         '';
       };
 
+      allowEgress = mkOption {
+        type = types.listOf (types.submodule {
+          options = {
+            daddr = mkOption {
+              type = types.str;
+              example = "10.10.0.3";
+              description = ''
+                Destination address or CIDR.
+              '';
+            };
+            port = mkOption {
+              type = types.port;
+              description = "Port number to allow.";
+            };
+            protocol = mkOption {
+              type = types.enum [ "tcp" "udp" "both" ];
+              default = "tcp";
+              description = "Protocol (tcp, udp, or both).";
+            };
+          };
+        });
+        default = [];
+        description = ''
+          Destinations this VM may reach, on top of whatever `internetAccess`
+          already grants. Additive, never restrictive: an entry here opens a
+          destination, it does not narrow the VM to that destination.
+
+          These accepts sit ahead of every drop in the forward chain, so an
+          entry reaches its destination regardless of what the rules ordinarily block.
+
+          - Private addresses (RFC1918, loopback, link-local, multicast, ULA)
+            are dropped for every VM — `internetAccess` gates the *public*
+            internet only and never opens a path to the host's other networks.
+            An entry here is the only way through.
+          - A *public* address here is reachable even when
+            `internetAccess = false`. That is the point: deny the internet, then
+            allow the one API the VM actually needs.
+
+          For reaching other forest VMs, use `dependsOn` instead.
+
+          Example: [
+            { daddr = "10.10.0.3"; port = 22; }              # a wireguard peer
+            { daddr = "192.168.1.0/24"; port = 631; protocol = "both"; }
+            { daddr = "160.79.104.10"; port = 443; }         # public, no internetAccess
+          ]
+        '';
+      };
+
       forwardPorts = mkOption {
         type = types.listOf (types.submodule {
           options = {

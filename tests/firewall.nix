@@ -8,9 +8,10 @@
 # a meta key — this build fails.
 #
 # The fixture is deliberately wide: VMs that exercise dependsOn,
-# internetAccess on/off, DNS restrict with mixed-family servers, and a
-# forwardPort. If `nft --check` is happy with this config, every rule
-# generator we ship is producing parseable output.
+# internetAccess on/off, allowEgress on both sides of internetAccess (the
+# no-internet one also pulls in the scoped NAT rules), DNS restrict with
+# mixed-family servers, and a forwardPort. If `nft --check` is happy with this
+# config, every rule generator we ship is producing parseable output.
 
 let
   lib = pkgs.lib;
@@ -41,11 +42,28 @@ let
         forwardPorts = [
           { port = 80; protocol = "tcp"; bindAddress = [ "0.0.0.0" "::" ]; }
         ];
+        # Carveouts on an internet VM: filter rules only, since the blanket
+        # masquerade already covers them.
+        allowEgress = [
+          { daddr = "10.10.0.3"; port = 22; }
+          { daddr = "192.168.1.0/24"; port = 631; protocol = "both"; }
+        ];
         config = { system.stateVersion = stateVersion; };
       };
       # No internet, no dependsOn → falls through to the chain-end catch-all.
+      # Its carveouts are the ones that also emit scoped NAT, in both families,
+      # and include a public daddr — the "deny the internet, allow one API"
+      # shape, which must render just like a private one.
       db = {
         internetAccess = false;
+        allowEgress = [
+          { daddr = "10.10.0.4"; port = 5432; }
+          { daddr = "fd00::4"; port = 5432; }
+          { daddr = "160.79.104.10"; port = 443; }
+          # A CIDR on the no-internet VM, so a prefix reaches a masquerade
+          # rule — the internet VM's CIDR is filtered out of the NAT pass.
+          { daddr = "10.20.0.0/16"; port = 8080; }
+        ];
         config = { system.stateVersion = stateVersion; };
       };
       cache = {
