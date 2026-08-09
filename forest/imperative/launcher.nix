@@ -167,7 +167,10 @@ pkgs.writeShellApplication {
     target=${user}@vsock/$cid
 
     # Wait for the vsock sshd to answer AND the shares to finish mounting.
-    until ssh "''${sshOpts[@]}" "$target" "${readyCheck}" 2>/dev/null; do
+    # -n: the poll must not eat the launcher's stdin — that belongs to the
+    # entrypoint session below (piping a script into the launcher is how
+    # non-interactive callers, e.g. the CI smoke check, drive the VM).
+    until ssh -n "''${sshOpts[@]}" "$target" "${readyCheck}" 2>/dev/null; do
       kill -0 "$vm" 2>/dev/null || { echo "forest: VM exited before ssh was ready:" >&2; cat "$console" >&2; exit 1; }
       sleep 0.25
     done
