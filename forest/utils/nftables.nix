@@ -203,6 +203,7 @@ rec {
     "10.0.0.0/8"      # RFC1918 private
     "172.16.0.0/12"   # RFC1918 private
     "192.168.0.0/16"  # RFC1918 private
+    "100.64.0.0/10"   # RFC6598 CGNAT (and tailnet)
     "127.0.0.0/8"     # loopback
     "169.254.0.0/16"  # link-local
     "224.0.0.0/4"     # multicast
@@ -211,7 +212,7 @@ rec {
   privateRanges6 = [
     "::1/128"    # loopback
     "fe80::/10"  # link-local
-    "fc00::/7"   # ULA (unique local)
+    "fc00::/7"   # ULA (unique local) (and tailnet's fd7a:115c:a1e0::/48)
     "ff00::/8"   # multicast
   ];
 
