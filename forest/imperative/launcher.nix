@@ -167,7 +167,10 @@ pkgs.writeShellApplication {
     target=${user}@vsock/$cid
 
     # Wait for the vsock sshd to answer AND the shares to finish mounting.
-    until ssh "''${sshOpts[@]}" "$target" "${readyCheck}" 2>/dev/null; do
+    # -n: the poll must not eat the launcher's stdin — that belongs to the
+    # entrypoint session below (piping a script into the launcher is how
+    # non-interactive callers, e.g. the CI smoke check, drive the VM).
+    until ssh -n "''${sshOpts[@]}" "$target" "${readyCheck}" 2>/dev/null; do
       kill -0 "$vm" 2>/dev/null || { echo "forest: VM exited before ssh was ready:" >&2; cat "$console" >&2; exit 1; }
       sleep 0.25
     done
@@ -181,6 +184,14 @@ pkgs.writeShellApplication {
     # for $wd; the guest shell is what interprets the command. When ssh returns, the
     # EXIT trap tears the VM down and removes the instance dir.
     ${workspaceScript}
-    ssh -t "''${sshOpts[@]}" "$target" "''${remotePrep}exec "${lib.escapeShellArg entrypoint} || true
+    # Positional args (`nix run .#<name> -- cmd args…`) override the spec's
+    # entrypoint for this launch — %q-quoted per word so the guest shell sees
+    # them verbatim. No args → the spec's entrypoint (interactive shell for "").
+    if [ $# -gt 0 ]; then
+      entry=$(printf '%q ' "$@")
+    else
+      entry=${lib.escapeShellArg entrypoint}
+    fi
+    ssh -t "''${sshOpts[@]}" "$target" "''${remotePrep}exec $entry" || true
   '';
 }

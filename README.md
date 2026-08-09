@@ -32,7 +32,7 @@ A thin opinionated layer over [microvm.nix](https://github.com/microvm-nix/micro
 > nix run github:antimemetics-institute/forest.nix#default
 > ```
 >
-> This is a new experimental API. See [Imperative VMs](#imperative-vms) for more information.
+> This is a new linux-only experimental API. See [Imperative VMs](#imperative-vms) for more information.
 
 ## Setup
 
@@ -475,9 +475,9 @@ You don't need to bind devices to `vfio-pci` manually — `microvm-pci-devices@<
 ## Imperative VMs
 
 > [!WARNING]
-> This is a new experimental API. The surface may shift without notice.
+> This is a new experimental API currently only supported on linux. The surface may shift without notice.
 
-Separately from the declarative fleet, forest can boot **ephemeral, unprivileged sandbox VMs** with a writable store overlay.
+Separately from the declarative fleet, forest can boot **ephemeral, unprivileged sandbox VMs** with a writable store overlay. A VM gets 4 GB RAM and 4 vCPUs by default; set `memorySize` / `cores` in the spec's `vm` to change that.
 
 Start one that mounts your current directory ([`forest/imperative/specs/minimal.nix`](forest/imperative/specs/minimal.nix)) with:
 
