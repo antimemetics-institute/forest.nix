@@ -26,30 +26,18 @@ A thin opinionated layer over [microvm.nix](https://github.com/microvm-nix/micro
 ```
 
 > [!NOTE]
-> Or, with no host setup at all, `nix run` a throwaway sandbox. The built-in `agents.claude` boots an unprivileged, ephemeral Claude Code VM in your current directory:
+> Or, with no host setup at all, `nix run` an ephemeral QEMU VM mounting your current directory:
 >
 > ```sh
-> nix run github:antimemetics-institute/forest.nix#agents.claude
+> nix run github:antimemetics-institute/forest.nix#default
 > ```
 >
-> See [Imperative VMs](#imperative-vms) for more information.
-
-## Status
-
-We early, APIs may shift.
-
-Things we could add if people want them:
-- [ ] cloud-hypervisor graphics
-- [ ] MacOS support
-- [ ] support for `sudo` alternatives in the CLI
-- [ ] idk, let me know
-
-Open an issue if you want a feature.
+> This is a new experimental API. See [Imperative VMs](#imperative-vms) for more information.
 
 ## Setup
 
 <details>
-<summary><b>Flake</b></summary>
+<summary><b>flake</b></summary>
 
 ```nix
 {
@@ -486,24 +474,26 @@ You don't need to bind devices to `vfio-pci` manually — `microvm-pci-devices@<
 
 ## Imperative VMs
 
-This is a new experimental API.
+> [!WARNING]
+> This is a new experimental API. The surface may shift without notice.
 
-Separately from the declarative fleet, forest can boot **ephemeral, unprivileged sandbox VMs** — no host config, no root, no persistent state. The built-in one is a Claude Code sandbox:
+Separately from the declarative fleet, forest can boot **ephemeral, unprivileged sandbox VMs** with a writable store overlay.
+
+Start one that mounts your current directory ([`forest/imperative/specs/minimal.nix`](forest/imperative/specs/minimal.nix)) with:
 
 ```sh
-nix run github:antimemetics-institute/forest.nix#agents.claude
+nix run github:antimemetics-institute/forest.nix#default
 ```
 
-Run from a project directory, this boots a throwaway VM, mounts that directory into it, drops you into `claude --dangerously-skip-permissions`, and tears the VM down when you exit. The agent has free rein *inside* the VM — the VM itself is the sandbox boundary — while only being able to touch the directory you launched from.
+Or, as a [pre-configured example](forest/imperative/specs/claude.nix), to run Claude Code with the current working directory mounted into `/home/claude` and your `~/.claude` login copied in, run:
 
-What it wires up:
-
-- **Your cwd is mounted** at `/home/claude/<its basename>`. The agent runs as uid 0, which maps back to *your* host uid, so its edits land in your real files, owned by you.
-- **Your `~/.claude` config is copied in** — a private, writable snapshot, not a mount — so Claude comes up already logged in. Its session changes (history, tokens) stay in the VM. We considered mounting it, but `~/.claude.json` is coupled to it, and cannot easily be mounted without mounting the whole home folder, so we copied it for now.
+```sh
+nix run github:antimemetics-institute/forest.nix#claude
+```
 
 ### Defining your own
 
-An agent is just data — a spec fed to `launcherFor`, which returns a runnable launcher derivation. Put the spec in a file:
+Given a spec, we can generate a runnable temporary VM launcher derivation. Put the spec in a file:
 
 ```nix
 # cowsay.nix
@@ -517,7 +507,7 @@ An agent is just data — a spec fed to `launcherFor`, which returns a runnable 
 }
 ```
 
-Build and run it with plain `nix-build`, pinning `forest` however you like (`fetchTarball`, `npins`, `tack`, a checkout):
+Build and run it with `nix-build`:
 
 ```nix
 # default.nix
@@ -535,7 +525,7 @@ launcherFor (import ./cowsay.nix)
 nix-build -o agent && ./agent/bin/forest-launch-cowsay
 ```
 
-Or add it as a flake app — pass `forest.nixosModules.default` so microvm/sops stay pinned to the flake's inputs:
+Or, add it as a flake app:
 
 ```nix
 # flake.nix
@@ -558,12 +548,12 @@ Or add it as a flake app — pass `forest.nixosModules.default` so microvm/sops 
 }
 ```
 
-Two optional fields let an agent reach the host — this is how `agents.claude` mounts your project and brings in your login:
+Two optional fields let an agent reach the host:
 
 - **`shares`** — virtiofs mounts; writes round-trip to the host. `from` is one of `{ cwd = true; }`, `{ home = "rel"; }`, `{ path = "/abs"; }`; `into` is a literal guest path or `{ under = "/dir"; }` (mount at `/dir/<basename>`).
 - **`seed`** — host paths *copied* into the agent's home at launch (a writable snapshot, not a mount; same `from` vocabulary). Use it for config or credentials the agent needs but shouldn't write back.
 
-`agents.claude` (`forest/imperative/agents/claude.nix`) is exactly this pattern with `shares`/`seed` filled in — a bare spec the flake reuses per-system, which is all `nix run …#agents.claude` is.
+Imperative VMs currently only support the QEMU hypervisor, since they rely on its [slirp user networking implementation](https://wiki.qemu.org/Documentation/Networking).
 
 ## Tests
 
