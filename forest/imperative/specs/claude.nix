@@ -1,5 +1,4 @@
-# agents.claude: a sandboxed, ephemeral Claude Code VM, run with
-# `nix run .#agents.claude`.
+# A sandboxed, ephemeral Claude Code VM, run with `nix run .#claude`.
 #
 # Pure data — the flake feeds this spec to the imperative builder
 # (forest/imperative). The imperative infra (qemu / user-net / rootless virtiofsd)
@@ -55,7 +54,7 @@
         description = "Claude agent";
       };
       # claude-code is unfree; pull it from a package set that allows exactly it, so
-      # `nix run .#agents.claude` needs no NIXPKGS_ALLOW_UNFREE and nothing else
+      # `nix run .#claude` needs no NIXPKGS_ALLOW_UNFREE and nothing else
       # unfree can slip in. Self-contained here — no whole-guest pkgs swap, no builder
       # special-casing. `import pkgs.path {…}` re-instantiates nixpkgs for this one
       # leaf package; same source ⇒ same derivation, so no store duplication.

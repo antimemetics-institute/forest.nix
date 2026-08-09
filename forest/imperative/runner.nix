@@ -30,7 +30,7 @@ let
 
   # Derive the imperative share list from the guest's *already-declared* shares
   # (forest/lib/shares.nix's base set, store-overlay's nix-var, and whatever the
-  # VM itself declares — e.g. agents.claude's cwd/.claude mounts). We only rebase
+  # VM itself declares — e.g. the claude spec's cwd/.claude mounts). We only rebase
   # the managed state-dir sources — absolute under the fleet stateRoot — to
   # relative tag names, resolved against forest-run-vm's per-user state dir (where
   # the launcher plants each tag's runtime source). Host-path sources

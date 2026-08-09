@@ -40,7 +40,7 @@
           # Wrap a built launcher in the flake-app schema `nix run` consumes.
           mkApp = spec: { type = "app"; program = pkgs.lib.getExe (launcherFor spec); };
         in {
-          agents.claude = mkApp (import ./forest/imperative/agents/claude.nix);
+          claude = mkApp (import ./forest/imperative/specs/claude.nix);
         });
 
       checks = forAllSystems ({ pkgs, ... }:

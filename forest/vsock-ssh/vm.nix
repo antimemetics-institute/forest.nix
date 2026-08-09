@@ -24,7 +24,7 @@
   # AllowUsers is a list and concatenates, PasswordAuthentication = false matches,
   # and plain-priority PermitRootLogin beats its mkDefault "no". PermitRootLogin is
   # unconditional because sshd gates root logins by uid, not name: the imperative
-  # login user can be a uid-0 alias (agents/claude), which trips it too — while for
+  # login user can be a uid-0 alias (specs/claude), which trips it too — while for
   # a real non-root `user` it simply has no effect (and root, lacking a planted
   # key, still can't log in).
   services.openssh.settings = {
