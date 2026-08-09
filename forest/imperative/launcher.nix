@@ -181,6 +181,14 @@ pkgs.writeShellApplication {
     # for $wd; the guest shell is what interprets the command. When ssh returns, the
     # EXIT trap tears the VM down and removes the instance dir.
     ${workspaceScript}
-    ssh -t "''${sshOpts[@]}" "$target" "''${remotePrep}exec "${lib.escapeShellArg entrypoint} || true
+    # Positional args (`nix run .#<name> -- cmd args…`) override the spec's
+    # entrypoint for this launch — %q-quoted per word so the guest shell sees
+    # them verbatim. No args → the spec's entrypoint (interactive shell for "").
+    if [ $# -gt 0 ]; then
+      entry=$(printf '%q ' "$@")
+    else
+      entry=${lib.escapeShellArg entrypoint}
+    fi
+    ssh -t "''${sshOpts[@]}" "$target" "''${remotePrep}exec $entry" || true
   '';
 }
